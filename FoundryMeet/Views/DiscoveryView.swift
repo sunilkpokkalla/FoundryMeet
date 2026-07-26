@@ -53,9 +53,10 @@ struct DiscoveryView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     HStack(spacing: 8) {
-                        // Assuming you added logo to Assets
-                        Image(systemName: "circle.grid.cross.fill")
-                            .foregroundColor(AppColors.secondary)
+                        Image("Logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 24, height: 24)
                         Text("Discover")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(AppColors.onSurface)

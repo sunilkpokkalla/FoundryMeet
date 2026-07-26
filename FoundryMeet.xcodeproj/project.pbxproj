@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		52A472616988CFFDC5487F10 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBBFAEB13C765A5C27FECF8F /* ContentView.swift */; };
+		53DF620BE5561042CC6D94F5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */; };
 		69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */; };
 		6E445D3A6058A130EF450515 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */; };
 		7CAFDA8371DECE37AD4055E9 /* SchedulingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA1431BB946EC402CF32FFB0 /* SchedulingView.swift */; };
@@ -24,6 +25,7 @@
 		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryMeetApp.swift; sourceTree = "<group>"; };
 		BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CBBFAEB13C765A5C27FECF8F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchHistoryView.swift; sourceTree = "<group>"; };
 		D8302D7DDCF5ABC376B506AB /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
@@ -46,6 +48,7 @@
 		4708BDB757A098FAD99AB371 /* FoundryMeet */ = {
 			isa = PBXGroup;
 			children = (
+				C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */,
 				CBBFAEB13C765A5C27FECF8F /* ContentView.swift */,
 				A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */,
 				50B84F4B4F694E651E433F91 /* Info.plist */,
@@ -87,6 +90,7 @@
 			buildConfigurationList = C614878A83F18E150B1760F6 /* Build configuration list for PBXNativeTarget "FoundryMeet" */;
 			buildPhases = (
 				002325A73660BF5ED5DD5995 /* Sources */,
+				67508AD16258602974E1EBDF /* Resources */,
 			);
 			buildRules = (
 			);
@@ -128,6 +132,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		67508AD16258602974E1EBDF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				53DF620BE5561042CC6D94F5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		002325A73660BF5ED5DD5995 /* Sources */ = {
