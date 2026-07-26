@@ -274,8 +274,11 @@ struct SchedulingView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Image("Logo")
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 28)
+                        .scaledToFill()
+                        .frame(width: 36, height: 36)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.gray.opacity(0.1), lineWidth: 1))
+                        .padding(.leading, 8)
                 }
                 ToolbarItem(placement: .principal) {
                     Text("Schedule")
