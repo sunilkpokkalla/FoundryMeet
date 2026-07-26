@@ -25,7 +25,7 @@ struct ContentView: View {
                     
                     NetworkingHubView()
                         .tabItem {
-                            Label("Hub", systemImage: "network")
+                            Label("Hub", systemImage: "globe")
                         }
                     
                     SchedulingView()
