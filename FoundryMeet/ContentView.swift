@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var authManager = AuthManager()
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @State private var isOnboardingCompleted = false
 
     var body: some View {
         Group {
-            if !hasSeenOnboarding && !isOnboardingCompleted {
+            if !authManager.isAuthenticated {
+                AuthView()
+            } else if !hasSeenOnboarding && !isOnboardingCompleted {
                 OnboardingView(isOnboardingCompleted: Binding(
                     get: { self.isOnboardingCompleted },
                     set: { newValue in
@@ -39,11 +42,6 @@ struct ContentView: View {
                         }
                 }
             }
-        }
-        .onAppear {
-            // Reset for testing purposes
-            hasSeenOnboarding = false
-            isOnboardingCompleted = false
         }
     }
 }
