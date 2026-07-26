@@ -40,6 +40,11 @@ struct ContentView: View {
                 }
             }
         }
+        .onAppear {
+            // Reset for testing purposes
+            hasSeenOnboarding = false
+            isOnboardingCompleted = false
+        }
     }
 }
 
