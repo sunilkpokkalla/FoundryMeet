@@ -1,9 +1,18 @@
 import SwiftUI
 
+struct DiscoveryProfile: Identifiable {
+    let id = UUID()
+    let name: String
+    let role: String
+    let imgUrl: String
+    let desc: String
+    let tags: [String]
+}
+
 struct DiscoveryView: View {
-    let mockProfiles = [
-        (name: "Sarah Chen", role: "CTO @ Stealth AI", imgUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuA0QfBeBm1DioWiMlUSwaNwhkst_KPXGv2hscKZ2WCivesiC-ZRg8rn7JQFo1RjP_A9hbX26eOk7mEfxWofkPWxOji9sb8uLBOhotCKhc_rSfmXtqMhdrSxgVJkINqhpUT9dEYXN4r0iSz6ThAj72IKacQNHzUg_n-QsoKhhmFdFyhnKE7cZpOmD1WXAkKByP6UttP7z8BFt6BBTIyvpa3qmuB8_C4BY3BCoDvveSHfXMKYefVvbZfp1D-kqG0sq5xTW4JT0Z2QsNg", desc: "Potential GTM partners and Series A insights from founders who've scaled to $10M ARR.", tags: ["Natural Language Processing", "Cloud Infrastructure", "Scaling Teams"]),
-        (name: "Marcus Aris", role: "CEO @ Bloom Logistics", imgUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBCtE5qu2rf2QU80DNGHCzWZ-AUgsifbN4BMvaOdZSLRFmeki7ZYM0JROldW9HKvoS1GPaoFUTwgYmTrDBWCv716Stg_0q8kl7EyI8MhjlzzOrxQ8a8YUfsbdkTeXDPhTD5bxusQN7mQcm0gZAkKIfP4bntsMxF21ixvM_CUU_ipbTMtXy4I87Bo78BUGpmJnKMPrBmIHjd-JDVgqIqJ2unLKKdSOkIfBbjbzaW216WKUxWJPBT24Vvgddbap3hKPkPMOBY9rQJo7U", desc: "Mentoring early-stage founders in the logistics space and exploring sustainable packaging tech.", tags: ["Operations", "Supply Chain AI", "Series B Prep"])
+    @State private var profiles = [
+        DiscoveryProfile(name: "Sarah Chen", role: "CTO @ Stealth AI", imgUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuA0QfBeBm1DioWiMlUSwaNwhkst_KPXGv2hscKZ2WCivesiC-ZRg8rn7JQFo1RjP_A9hbX26eOk7mEfxWofkPWxOji9sb8uLBOhotCKhc_rSfmXtqMhdrSxgVJkINqhpUT9dEYXN4r0iSz6ThAj72IKacQNHzUg_n-QsoKhhmFdFyhnKE7cZpOmD1WXAkKByP6UttP7z8BFt6BBTIyvpa3qmuB8_C4BY3BCoDvveSHfXMKYefVvbZfp1D-kqG0sq5xTW4JT0Z2QsNg", desc: "Potential GTM partners and Series A insights from founders who've scaled to $10M ARR.", tags: ["Natural Language Processing", "Cloud Infrastructure", "Scaling Teams"]),
+        DiscoveryProfile(name: "Marcus Aris", role: "CEO @ Bloom Logistics", imgUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBCtE5qu2rf2QU80DNGHCzWZ-AUgsifbN4BMvaOdZSLRFmeki7ZYM0JROldW9HKvoS1GPaoFUTwgYmTrDBWCv716Stg_0q8kl7EyI8MhjlzzOrxQ8a8YUfsbdkTeXDPhTD5bxusQN7mQcm0gZAkKIfP4bntsMxF21ixvM_CUU_ipbTMtXy4I87Bo78BUGpmJnKMPrBmIHjd-JDVgqIqJ2unLKKdSOkIfBbjbzaW216WKUxWJPBT24Vvgddbap3hKPkPMOBY9rQJo7U", desc: "Mentoring early-stage founders in the logistics space and exploring sustainable packaging tech.", tags: ["Operations", "Supply Chain AI", "Series B Prep"])
     ]
     
     var body: some View {
@@ -37,15 +46,41 @@ struct DiscoveryView: View {
                             .padding(.horizontal, 20)
                         }
                         
-                        // Profile Cards
-                        VStack(spacing: 24) {
-                            ForEach(mockProfiles, id: \.name) { profile in
-                                DiscoveryProfileCard(profile: profile)
+                        // Profile Cards or Empty State
+                        if profiles.isEmpty {
+                            VStack(spacing: 16) {
+                                Spacer().frame(height: 60)
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(AppColors.secondary)
+                                Text("You're all caught up!")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(AppColors.onSurface)
+                                Text("Check back later for more high-signal matches curated just for you.")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(AppColors.onSurfaceVariant)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
                             }
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            VStack(spacing: 24) {
+                                ForEach(profiles) { profile in
+                                    DiscoveryProfileCard(
+                                        profile: profile,
+                                        onDismiss: { removeProfile(profile) },
+                                        onConnect: { removeProfile(profile) }
+                                    )
+                                    .transition(.asymmetric(
+                                        insertion: .identity,
+                                        removal: .modifier(active: SlideOutModifier(offset: -UIScreen.main.bounds.width), identity: SlideOutModifier(offset: 0))
+                                    ))
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                            .padding(.bottom, 40)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
-                        .padding(.bottom, 40)
                     }
                 }
             }
@@ -68,6 +103,21 @@ struct DiscoveryView: View {
                 }
             }
         }
+    }
+    
+    private func removeProfile(_ profile: DiscoveryProfile) {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            profiles.removeAll { $0.id == profile.id }
+        }
+    }
+}
+
+struct SlideOutModifier: ViewModifier {
+    let offset: CGFloat
+    func body(content: Content) -> some View {
+        content
+            .offset(x: offset)
+            .opacity(offset == 0 ? 1 : 0)
     }
 }
 
@@ -94,7 +144,9 @@ struct FilterChip: View {
 }
 
 struct DiscoveryProfileCard: View {
-    var profile: (name: String, role: String, imgUrl: String, desc: String, tags: [String])
+    var profile: DiscoveryProfile
+    var onDismiss: () -> Void
+    var onConnect: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -181,7 +233,7 @@ struct DiscoveryProfileCard: View {
                 .cornerRadius(12)
                 
                 HStack(spacing: 12) {
-                    Button(action: {}) {
+                    Button(action: onConnect) {
                         HStack {
                             Image(systemName: "cup.and.saucer.fill")
                             Text("Request Coffee Chat")
@@ -194,7 +246,7 @@ struct DiscoveryProfileCard: View {
                         .cornerRadius(12)
                     }
                     
-                    Button(action: {}) {
+                    Button(action: onDismiss) {
                         Image(systemName: "xmark")
                             .foregroundColor(AppColors.onSurface)
                             .frame(width: 56, height: 56)
