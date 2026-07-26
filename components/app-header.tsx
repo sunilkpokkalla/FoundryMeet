@@ -11,7 +11,7 @@ export function AppHeader({ title }: AppHeaderProps) {
       <div className="flex h-16 items-center justify-between px-margin-mobile">
         <div className="flex items-center gap-unit">
           <Image
-            src={IMAGES.logo}
+            src="/logo.png"
             alt="FoundryMeet Logo"
             width={120}
             height={32}
