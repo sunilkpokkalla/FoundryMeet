@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		174FEEAC2ACEF6F8BB55CABC /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B39764E724A6424013283BC /* AuthManager.swift */; };
 		17B4A2B3AA784B964A7903B0 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = E6D10DC36E5A374E2D039F48 /* FirebaseAnalytics */; };
 		3823C1C7A031E78E1007D0FA /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = B2A6663042E0FDEE2F78775F /* FirebaseAuth */; };
 		52A472616988CFFDC5487F10 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBBFAEB13C765A5C27FECF8F /* ContentView.swift */; };
@@ -15,6 +16,7 @@
 		69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */; };
 		6E445D3A6058A130EF450515 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */; };
 		7CAFDA8371DECE37AD4055E9 /* SchedulingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA1431BB946EC402CF32FFB0 /* SchedulingView.swift */; };
+		84295FDC079D7526C7B713D9 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1388872644E7D53B80FDA8BF /* AuthView.swift */; };
 		9E52B3D9E2644ADA2AA41BDD /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 0A2B3770CBBC5046E511A275 /* FirebaseFirestore */; };
 		A4388E788D35E1C1A497BEC4 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8302D7DDCF5ABC376B506AB /* AppColors.swift */; };
 		AC77A423A0ABE138DC9CCAA2 /* MatchHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */; };
@@ -24,10 +26,12 @@
 
 /* Begin PBXFileReference section */
 		0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkingHubView.swift; sourceTree = "<group>"; };
+		1388872644E7D53B80FDA8BF /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		19898197BAA10B276B2FB8DE /* DiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryView.swift; sourceTree = "<group>"; };
 		50B84F4B4F694E651E433F91 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		8B39764E724A6424013283BC /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryMeetApp.swift; sourceTree = "<group>"; };
 		BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -54,6 +58,7 @@
 		1BF0B9AD1E0021CC5B2E8E9A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1388872644E7D53B80FDA8BF /* AuthView.swift */,
 				19898197BAA10B276B2FB8DE /* DiscoveryView.swift */,
 				CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */,
 				0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */,
@@ -97,6 +102,7 @@
 			isa = PBXGroup;
 			children = (
 				D8302D7DDCF5ABC376B506AB /* AppColors.swift */,
+				8B39764E724A6424013283BC /* AuthManager.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -133,7 +139,9 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = 435816FC2761A06E53AF5955 /* Build configuration list for PBXProject "FoundryMeet" */;
 			developmentRegion = en;
@@ -175,6 +183,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A4388E788D35E1C1A497BEC4 /* AppColors.swift in Sources */,
+				174FEEAC2ACEF6F8BB55CABC /* AuthManager.swift in Sources */,
+				84295FDC079D7526C7B713D9 /* AuthView.swift in Sources */,
 				52A472616988CFFDC5487F10 /* ContentView.swift in Sources */,
 				FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */,
 				69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */,
@@ -223,10 +233,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -239,7 +247,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -252,14 +259,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FoundryMeet;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.ambright.FoundryMeet;
+				PRODUCT_BUNDLE_IDENTIFIER = com.startupnetwork.FoundryMeet;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -271,14 +276,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FoundryMeet;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.ambright.FoundryMeet;
+				PRODUCT_BUNDLE_IDENTIFIER = com.startupnetwork.FoundryMeet;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -319,10 +322,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -342,7 +343,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -378,7 +378,7 @@
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 10.29.0;
+				minimumVersion = 10.0.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
