@@ -52,15 +52,10 @@ struct DiscoveryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    HStack(spacing: 8) {
-                        Image("Logo")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 24, height: 24)
-                        Text("Discover")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(AppColors.onSurface)
-                    }
+                    Image("Logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 28)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Image(systemName: "person.crop.circle.fill")
