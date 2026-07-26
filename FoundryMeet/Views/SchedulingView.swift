@@ -143,7 +143,7 @@ struct SchedulingView: View {
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(AppColors.outlineVariant, style: StrokeStyle(lineWidth: 2, dash: [4]))
+                                            .stroke(AppColors.onSurfaceVariant.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [4]))
                                     )
                                 }
                             }
