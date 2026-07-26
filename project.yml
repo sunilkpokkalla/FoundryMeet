@@ -1,0 +1,13 @@
+name: FoundryMeet
+options:
+  bundleIdPrefix: com.startupnetwork
+targets:
+  FoundryMeet:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [FoundryMeet]
+    info:
+      path: FoundryMeet/Info.plist
+      properties:
+        UILaunchScreen: {}
