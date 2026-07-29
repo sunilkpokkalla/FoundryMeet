@@ -23,31 +23,19 @@ struct ContentView: View {
                     }
                 ))
             } else {
-                TabView {
-                    DiscoveryView()
-                        .tabItem {
-                            Label("Discover", systemImage: "sparkles")
-                        }
-
-                    NetworkingHubView()
-                        .tabItem {
-                            Label("Hub", systemImage: "globe")
-                        }
-
-                    SchedulingView()
-                        .tabItem {
-                            Label("Schedule", systemImage: "calendar")
-                        }
-
-                    MatchHistoryView()
-                        .tabItem {
-                            Label("History", systemImage: "clock")
-                        }
-                }
+                MainTabView()
             }
         }
         .environmentObject(authManager)
         .environmentObject(AppRepository.shared)
+#if DEBUG
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-skipAuth"),
+               !authManager.isAuthenticated {
+                authManager.startDevSession()
+            }
+        }
+#endif
     }
 }
 

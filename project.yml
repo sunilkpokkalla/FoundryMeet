@@ -1,6 +1,12 @@
 name: FoundryMeet
 options:
   bundleIdPrefix: com.startupnetwork
+settings:
+  base:
+    # Xcode 26 Explicit Modules fails on FirebaseFirestoreInternal binary headers
+    # ("module 'Foundation' is needed but has not been provided").
+    SWIFT_ENABLE_EXPLICIT_MODULES: NO
+    CLANG_ENABLE_EXPLICIT_MODULES: NO
 targets:
   FoundryMeet:
     type: application
@@ -16,6 +22,10 @@ targets:
         product: FirebaseCore
       - package: Firebase
         product: FirebaseFirestore
+    settings:
+      base:
+        SWIFT_ENABLE_EXPLICIT_MODULES: NO
+        CLANG_ENABLE_EXPLICIT_MODULES: NO
     info:
       path: FoundryMeet/Info.plist
       properties:
