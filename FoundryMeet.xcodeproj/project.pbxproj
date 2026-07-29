@@ -22,6 +22,7 @@
 		6E445D3A6058A130EF450515 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */; };
 		7CAFDA8371DECE37AD4055E9 /* SchedulingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA1431BB946EC402CF32FFB0 /* SchedulingView.swift */; };
 		84295FDC079D7526C7B713D9 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1388872644E7D53B80FDA8BF /* AuthView.swift */; };
+		8D04A7F7835A240071A0A5F9 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C88E22C8C7EC98421373CA8 /* MainTabView.swift */; };
 		9E52B3D9E2644ADA2AA41BDD /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = F0EE82E406F71E3F5AADBFF2 /* FirebaseCore */; };
 		A4388E788D35E1C1A497BEC4 /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8302D7DDCF5ABC376B506AB /* AppColors.swift */; };
 		AC77A423A0ABE138DC9CCAA2 /* MatchHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */; };
@@ -40,6 +41,7 @@
 		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		8B39764E724A6424013283BC /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
+		8C88E22C8C7EC98421373CA8 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryMeetApp.swift; sourceTree = "<group>"; };
 		BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 			children = (
 				1388872644E7D53B80FDA8BF /* AuthView.swift */,
 				19898197BAA10B276B2FB8DE /* DiscoveryView.swift */,
+				8C88E22C8C7EC98421373CA8 /* MainTabView.swift */,
 				CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */,
 				E810429FF57576EB95726613 /* MatchNotesView.swift */,
 				0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */,
@@ -215,6 +218,7 @@
 				52A472616988CFFDC5487F10 /* ContentView.swift in Sources */,
 				FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */,
 				69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */,
+				8D04A7F7835A240071A0A5F9 /* MainTabView.swift in Sources */,
 				AC77A423A0ABE138DC9CCAA2 /* MatchHistoryView.swift in Sources */,
 				CC517F9D5639157B7495ADBF /* MatchModels.swift in Sources */,
 				0AA465D20905B74821980045 /* MatchNotesView.swift in Sources */,
@@ -237,6 +241,7 @@
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_EXPLICIT_MODULES = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -279,6 +284,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 			};
@@ -288,6 +294,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_EXPLICIT_MODULES = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -297,6 +304,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.startupnetwork.FoundryMeet;
 				SDKROOT = iphoneos;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -305,6 +313,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_EXPLICIT_MODULES = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -314,6 +323,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.startupnetwork.FoundryMeet;
 				SDKROOT = iphoneos;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -326,6 +336,7 @@
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_EXPLICIT_MODULES = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
@@ -375,6 +386,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
