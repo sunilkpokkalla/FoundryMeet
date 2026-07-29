@@ -28,6 +28,7 @@
 		AC77A423A0ABE138DC9CCAA2 /* MatchHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */; };
 		CC517F9D5639157B7495ADBF /* MatchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */; };
 		E0F91EC570A2B8539AFC72DE /* NetworkingHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */; };
+		F4C8DA8610BD2F138B69696E /* AppChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78EA52054894AED4DB6749E /* AppChrome.swift */; };
 		FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19898197BAA10B276B2FB8DE /* DiscoveryView.swift */; };
 /* End PBXBuildFile section */
 
@@ -45,6 +46,7 @@
 		A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryMeetApp.swift; sourceTree = "<group>"; };
 		BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C78EA52054894AED4DB6749E /* AppChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppChrome.swift; sourceTree = "<group>"; };
 		CBBFAEB13C765A5C27FECF8F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchHistoryView.swift; sourceTree = "<group>"; };
 		CF97FF73C70591A9DA2734C2 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 		1BF0B9AD1E0021CC5B2E8E9A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				C78EA52054894AED4DB6749E /* AppChrome.swift */,
 				1388872644E7D53B80FDA8BF /* AuthView.swift */,
 				19898197BAA10B276B2FB8DE /* DiscoveryView.swift */,
 				8C88E22C8C7EC98421373CA8 /* MainTabView.swift */,
@@ -211,6 +214,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F4C8DA8610BD2F138B69696E /* AppChrome.swift in Sources */,
 				A4388E788D35E1C1A497BEC4 /* AppColors.swift in Sources */,
 				071AA8FE7296C6F34867567A /* AppRepository.swift in Sources */,
 				174FEEAC2ACEF6F8BB55CABC /* AuthManager.swift in Sources */,
