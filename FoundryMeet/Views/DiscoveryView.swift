@@ -11,74 +11,90 @@ struct DiscoveryView: View {
             ZStack(alignment: .top) {
                 AppColors.surface.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Curated for you")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(AppColors.onSurface)
-                            Text("High-signal matches based on your recent activity.")
-                                .font(.system(size: 16))
-                                .foregroundColor(AppColors.onSurfaceVariant)
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
+                VStack(spacing: 0) {
+                    AppHeader(
+                        showProfile: $showProfile,
+                        profileInitials: repository.profile?.initials ?? ""
+                    )
 
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                FilterChip(text: "Stage: Seed+", icon: "line.3.horizontal.decrease", isSelected: true)
-                                FilterChip(text: "Goal: Fundraising", isSelected: false)
-                                FilterChip(text: "Industry: AI/ML", isSelected: false)
-                                FilterChip(text: "Location", isSelected: false)
-                            }
-                            .padding(.horizontal, 20)
-                        }
-
-                        if !errorMessage.isEmpty {
-                            Text(errorMessage)
-                                .font(.system(size: 13))
-                                .foregroundColor(.red)
-                                .padding(.horizontal, 20)
-                        }
-
-                        if repository.discoveryFeed.isEmpty {
-                            VStack(spacing: 16) {
-                                Spacer().frame(height: 60)
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(AppColors.secondary)
-                                Text("You're all caught up!")
-                                    .font(.system(size: 20, weight: .semibold))
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Curated for you")
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .tracking(-0.6)
                                     .foregroundColor(AppColors.onSurface)
-                                Text("Check back later for more high-signal matches curated just for you.")
-                                    .font(.system(size: 16))
+                                Text("High-signal matches based on your recent activity.")
+                                    .font(.system(size: 15, weight: .regular))
                                     .foregroundColor(AppColors.onSurfaceVariant)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 40)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .frame(maxWidth: .infinity)
-                        } else {
-                            VStack(spacing: 24) {
-                                ForEach(repository.discoveryFeed) { profile in
-                                    DiscoveryProfileCard(
-                                        profile: profile,
-                                        isDisabled: isWorking,
-                                        onDismiss: { handleDismiss(profile) },
-                                        onConnect: { handleConnect(profile) }
-                                    )
+                            .padding(.horizontal, 24)
+                            .padding(.top, 12)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    FilterChip(text: "Stage: Seed+", icon: "slider.horizontal.3", isSelected: true)
+                                    FilterChip(text: "Goal: Fundraising", isSelected: false)
+                                    FilterChip(text: "Industry: AI/ML", isSelected: false)
+                                    FilterChip(text: "Location", isSelected: false)
                                 }
+                                .padding(.horizontal, 24)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 8)
-                            .padding(.bottom, 40)
+
+                            if !errorMessage.isEmpty {
+                                Text(errorMessage)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.red)
+                                    .padding(.horizontal, 24)
+                            }
+
+                            if repository.discoveryFeed.isEmpty {
+                                VStack(spacing: 14) {
+                                    Spacer().frame(height: 72)
+
+                                    ZStack {
+                                        Circle()
+                                            .fill(AppColors.accentSoft.opacity(0.55))
+                                            .frame(width: 72, height: 72)
+                                        Image(systemName: "sparkle")
+                                            .font(.system(size: 28, weight: .medium))
+                                            .foregroundColor(AppColors.secondary)
+                                    }
+
+                                    Text("You're all caught up")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .tracking(-0.3)
+                                        .foregroundColor(AppColors.onSurface)
+
+                                    Text("New high-signal matches will appear here as your network evolves.")
+                                        .font(.system(size: 15))
+                                        .foregroundColor(AppColors.onSurfaceVariant)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 48)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.bottom, 40)
+                            } else {
+                                VStack(spacing: 20) {
+                                    ForEach(repository.discoveryFeed) { profile in
+                                        DiscoveryProfileCard(
+                                            profile: profile,
+                                            isDisabled: isWorking,
+                                            onDismiss: { handleDismiss(profile) },
+                                            onConnect: { handleConnect(profile) }
+                                        )
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.top, 4)
+                                .padding(.bottom, 40)
+                            }
                         }
                     }
                 }
             }
-            .appNavigationChrome(
-                showProfile: $showProfile,
-                profileInitials: repository.profile?.initials ?? ""
-            )
+            .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
             }
@@ -124,16 +140,20 @@ struct FilterChip: View {
         HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 14))
+                    .font(.system(size: 12, weight: .medium))
             }
             Text(text)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(isSelected ? Color(hex: 0xffdb94) : AppColors.surfaceContainerHighest)
-        .foregroundColor(isSelected ? Color(hex: 0x795f24) : AppColors.onSurfaceVariant)
-        .cornerRadius(20)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(isSelected ? AppColors.accentSoft : AppColors.surfaceContainerLowest)
+        .foregroundColor(isSelected ? AppColors.secondary : AppColors.onSurfaceVariant)
+        .overlay(
+            Capsule()
+                .stroke(isSelected ? AppColors.secondary.opacity(0.18) : AppColors.hairline, lineWidth: 1)
+        )
+        .clipShape(Capsule())
     }
 }
 

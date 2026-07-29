@@ -25,50 +25,73 @@ struct MainTabView: View {
     }
 }
 
-private enum AppTab: Hashable {
+private enum AppTab: Hashable, CaseIterable {
     case discover, hub, schedule, history
+
+    var title: String {
+        switch self {
+        case .discover: return "Discover"
+        case .hub: return "Hub"
+        case .schedule: return "Schedule"
+        case .history: return "History"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .discover: return "sparkle"
+        case .hub: return "globe"
+        case .schedule: return "calendar"
+        case .history: return "clock"
+        }
+    }
 }
 
 private struct MainTabBar: View {
     @Binding var selectedTab: AppTab
 
-    private let tabs: [(AppTab, String, String)] = [
-        (.discover, "Discover", "sparkles"),
-        (.hub, "Hub", "globe"),
-        (.schedule, "Schedule", "calendar"),
-        (.history, "History", "clock")
-    ]
-
     var body: some View {
         VStack(spacing: 0) {
             Rectangle()
-                .fill(Color.black.opacity(0.06))
+                .fill(AppColors.hairline)
                 .frame(height: 1)
 
             HStack(spacing: 0) {
-                ForEach(tabs, id: \.0) { tab, title, icon in
+                ForEach(AppTab.allCases, id: \.self) { tab in
                     Button {
-                        selectedTab = tab
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: icon)
-                                .font(.system(size: 20, weight: selectedTab == tab ? .semibold : .regular))
-                            Text(title)
-                                .font(.system(size: 11, weight: selectedTab == tab ? .semibold : .medium))
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            selectedTab = tab
                         }
-                        .foregroundColor(selectedTab == tab ? AppColors.onSurface : AppColors.onSurfaceVariant.opacity(0.55))
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 18, weight: selectedTab == tab ? .semibold : .regular))
+                                .symbolRenderingMode(.monochrome)
+
+                            Text(tab.title)
+                                .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .medium))
+                                .tracking(0.2)
+
+                            Capsule()
+                                .fill(selectedTab == tab ? AppColors.onSurface : Color.clear)
+                                .frame(width: 14, height: 2)
+                        }
+                        .foregroundColor(
+                            selectedTab == tab
+                                ? AppColors.onSurface
+                                : AppColors.onSurfaceVariant.opacity(0.45)
+                        )
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 10)
-                        .padding(.bottom, 8)
+                        .padding(.top, 12)
+                        .padding(.bottom, 6)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(title)
+                    .accessibilityLabel(tab.title)
                     .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 2)
+            .padding(.horizontal, 4)
             .background(AppColors.surfaceContainerLowest)
         }
         .background(AppColors.surfaceContainerLowest.ignoresSafeArea(edges: .bottom))

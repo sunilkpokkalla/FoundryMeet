@@ -1,19 +1,22 @@
 import SwiftUI
 
 struct AppColors {
-    static let primary = Color(hex: 0x000000)
+    // Quiet charcoal / warm paper palette — closer to Linear/Stripe than Material blue-gray.
+    static let primary = Color(hex: 0x171717)
     static let onPrimary = Color(hex: 0xFFFFFF)
-    static let secondary = Color(hex: 0x745b20)
+    static let secondary = Color(hex: 0x8A6A2F)
     static let onSecondary = Color(hex: 0xFFFFFF)
-    static let background = Color(hex: 0xf8f9ff)
-    static let surface = Color(hex: 0xf8f9ff)
-    static let onSurface = Color(hex: 0x0d1c2e)
-    static let onSurfaceVariant = Color(hex: 0x4c4640)
-    static let surfaceContainerLow = Color(hex: 0xeff4ff)
-    static let surfaceContainer = Color(hex: 0xe6eeff)
-    static let surfaceContainerHigh = Color(hex: 0xdce9ff)
-    static let surfaceContainerHighest = Color(hex: 0xd5e3fc)
-    static let surfaceContainerLowest = Color(hex: 0xffffff)
+    static let background = Color(hex: 0xF7F7F5)
+    static let surface = Color(hex: 0xF7F7F5)
+    static let onSurface = Color(hex: 0x171717)
+    static let onSurfaceVariant = Color(hex: 0x6B6B66)
+    static let surfaceContainerLow = Color(hex: 0xF0F0EC)
+    static let surfaceContainer = Color(hex: 0xEBEBE6)
+    static let surfaceContainerHigh = Color(hex: 0xE4E4DE)
+    static let surfaceContainerHighest = Color(hex: 0xDDDDD6)
+    static let surfaceContainerLowest = Color(hex: 0xFFFFFF)
+    static let hairline = Color.black.opacity(0.06)
+    static let accentSoft = Color(hex: 0xF3E7D0)
 }
 
 extension Color {

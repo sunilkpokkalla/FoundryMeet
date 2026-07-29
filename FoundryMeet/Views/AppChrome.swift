@@ -1,64 +1,60 @@
 import SwiftUI
 
-/// Shared top chrome: centered logo + balanced profile control.
-struct AppNavToolbar: ToolbarContent {
+struct AppHeader: View {
     @Binding var showProfile: Bool
     var profileInitials: String = ""
 
-    var body: some ToolbarContent {
-        // Matching width on the leading side keeps the logo optically centered.
-        ToolbarItem(placement: .topBarLeading) {
-            Color.clear
-                .frame(width: 36, height: 36)
-                .accessibilityHidden(true)
-        }
+    var body: some View {
+        ZStack {
+            // Brand lockup — truly centered, independent of trailing controls.
+            HStack(spacing: 8) {
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
 
-        ToolbarItem(placement: .principal) {
-            Image("Logo")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 26)
-                .accessibilityLabel("FoundryMeet")
-        }
-
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showProfile = true
-            } label: {
-                Group {
-                    if profileInitials.isEmpty {
-                        Image(systemName: "person")
-                            .font(.system(size: 14, weight: .semibold))
-                    } else {
-                        Text(profileInitials)
-                            .font(.system(size: 12, weight: .bold))
-                    }
-                }
-                .foregroundColor(AppColors.onSurface)
-                .frame(width: 36, height: 36)
-                .background(
-                    Circle()
-                        .stroke(AppColors.onSurface.opacity(0.12), lineWidth: 1)
-                        .background(Circle().fill(AppColors.surfaceContainerLowest))
-                )
+                Text("FoundryMeet")
+                    .font(.system(size: 17, weight: .semibold))
+                    .tracking(-0.3)
+                    .foregroundColor(AppColors.onSurface)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Account")
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("FoundryMeet")
+
+            HStack {
+                Spacer()
+                Button {
+                    showProfile = true
+                } label: {
+                    Group {
+                        if profileInitials.isEmpty {
+                            Image(systemName: "person")
+                                .font(.system(size: 13, weight: .medium))
+                        } else {
+                            Text(profileInitials.prefix(1).uppercased())
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                    }
+                    .foregroundColor(AppColors.onSurface.opacity(0.85))
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(AppColors.surfaceContainerLowest))
+                    .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Account")
+            }
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
+        .background(AppColors.surface)
     }
 }
 
 extension View {
-    func appNavigationChrome(
-        showProfile: Binding<Bool>,
-        profileInitials: String = ""
-    ) -> some View {
+    func hideSystemNavBar() -> some View {
         self
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                AppNavToolbar(showProfile: showProfile, profileInitials: profileInitials)
-            }
-            .toolbarBackground(AppColors.surface, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar(.hidden, for: .navigationBar)
     }
 }

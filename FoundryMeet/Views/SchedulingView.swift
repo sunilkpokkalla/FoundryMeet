@@ -36,35 +36,36 @@ struct SchedulingView: View {
             ZStack {
                 AppColors.surface.ignoresSafeArea()
 
-                if let match = activeMatch {
-                    scheduleForm(for: match)
-                } else {
-                    emptyState
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 28, height: 28)
-                        .padding(.leading, 8)
-                }
-                ToolbarItem(placement: .principal) {
-                    Text("Schedule")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(AppColors.onSurface)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showProfile = true }) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                            .foregroundColor(.gray)
+                VStack(spacing: 0) {
+                    AppHeader(
+                        showProfile: $showProfile,
+                        profileInitials: repository.profile?.initials ?? ""
+                    )
+
+                    if let match = activeMatch {
+                        scheduleForm(for: match)
+                    } else {
+                        VStack(alignment: .leading, spacing: 0) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Schedule")
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundColor(AppColors.onSurface)
+                                Text("Confirm a time once you have an accepted match.")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(AppColors.onSurfaceVariant)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 8)
+
+                            Spacer()
+                            emptyState
+                            Spacer()
+                        }
                     }
                 }
             }
+            .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
             }

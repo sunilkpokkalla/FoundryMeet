@@ -15,77 +15,81 @@ struct NetworkingHubView: View {
             ZStack {
                 AppColors.surface.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Foundry Hub")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(AppColors.onSurface)
-                            Text("Browse builders across the network.")
-                                .font(.system(size: 16))
-                                .foregroundColor(AppColors.onSurfaceVariant)
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
+                VStack(spacing: 0) {
+                    AppHeader(
+                        showProfile: $showProfile,
+                        profileInitials: repository.profile?.initials ?? ""
+                    )
 
-                        if !statusMessage.isEmpty {
-                            Text(statusMessage)
-                                .font(.system(size: 13))
-                                .foregroundColor(AppColors.secondary)
-                                .padding(.horizontal, 20)
-                        }
-
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            ForEach(builders) { builder in
-                                Button(action: {
-                                    selectedBuilder = builder
-                                }) {
-                                    VStack(spacing: 12) {
-                                        Circle()
-                                            .fill(builder.accentColor.opacity(0.15))
-                                            .frame(width: 80, height: 80)
-                                            .overlay(
-                                                Text(builder.initials)
-                                                    .font(.system(size: 28, weight: .bold))
-                                                    .foregroundColor(builder.accentColor)
-                                            )
-
-                                        VStack(spacing: 4) {
-                                            Text(builder.name)
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(AppColors.onSurface)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.8)
-
-                                            Text(builder.role)
-                                                .font(.system(size: 12, weight: .medium))
-                                                .foregroundColor(AppColors.secondary)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.8)
-
-                                            Text(builder.industry)
-                                                .font(.system(size: 11, weight: .regular))
-                                                .foregroundColor(AppColors.onSurfaceVariant)
-                                        }
-                                    }
-                                    .padding(20)
-                                    .frame(maxWidth: .infinity)
-                                    .background(AppColors.surfaceContainerLowest)
-                                    .cornerRadius(16)
-                                    .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
-                                }
-                                .buttonStyle(PlainButtonStyle())
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Foundry Hub")
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundColor(AppColors.onSurface)
+                                Text("Browse builders across the network.")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(AppColors.onSurfaceVariant)
                             }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+
+                            if !statusMessage.isEmpty {
+                                Text(statusMessage)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(AppColors.secondary)
+                                    .padding(.horizontal, 20)
+                            }
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                                ForEach(builders) { builder in
+                                    Button(action: {
+                                        selectedBuilder = builder
+                                    }) {
+                                        VStack(spacing: 12) {
+                                            Circle()
+                                                .fill(builder.accentColor.opacity(0.15))
+                                                .frame(width: 80, height: 80)
+                                                .overlay(
+                                                    Text(builder.initials)
+                                                        .font(.system(size: 28, weight: .bold))
+                                                        .foregroundColor(builder.accentColor)
+                                                )
+
+                                            VStack(spacing: 4) {
+                                                Text(builder.name)
+                                                    .font(.system(size: 16, weight: .semibold))
+                                                    .foregroundColor(AppColors.onSurface)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.8)
+
+                                                Text(builder.role)
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .foregroundColor(AppColors.secondary)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.8)
+
+                                                Text(builder.industry)
+                                                    .font(.system(size: 11, weight: .regular))
+                                                    .foregroundColor(AppColors.onSurfaceVariant)
+                                            }
+                                        }
+                                        .padding(20)
+                                        .frame(maxWidth: .infinity)
+                                        .background(AppColors.surfaceContainerLowest)
+                                        .cornerRadius(16)
+                                        .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 4)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
                     }
                 }
             }
-            .appNavigationChrome(
-                showProfile: $showProfile,
-                profileInitials: repository.profile?.initials ?? ""
-            )
+            .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
             }
