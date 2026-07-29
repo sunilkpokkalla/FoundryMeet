@@ -89,10 +89,8 @@ struct DiscoveryView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Image("Logo")
                         .resizable()
-                        .scaledToFill()
-                        .frame(width: 36, height: 36)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.gray.opacity(0.1), lineWidth: 1))
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
                         .padding(.leading, 8)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {

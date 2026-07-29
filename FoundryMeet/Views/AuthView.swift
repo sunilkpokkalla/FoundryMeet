@@ -2,6 +2,7 @@ import SwiftUI
 import FirebaseAuth
 
 struct AuthView: View {
+    @EnvironmentObject private var authManager: AuthManager
     @State private var email = ""
     @State private var password = ""
     @State private var isSignUp = false
@@ -17,10 +18,8 @@ struct AuthView: View {
                 VStack(spacing: 12) {
                     Image("Logo")
                         .resizable()
-                        .scaledToFill()
-                        .frame(width: 80, height: 80)
-                        .clipShape(Circle())
-                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
+                        .scaledToFit()
+                        .frame(width: 72, height: 72)
                         .padding(.bottom, 8)
                     
                     Text("FoundryMeet")
@@ -97,6 +96,15 @@ struct AuthView: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(AppColors.secondary)
                     }
+                    
+#if DEBUG
+                    Button(action: authManager.startDevSession) {
+                        Text("Skip sign-in (Debug)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                            .underline()
+                    }
+#endif
                 }
                 .padding(.horizontal, 24)
                 
@@ -143,8 +151,16 @@ struct AuthView: View {
     }
     
     private func handleAuth() {
-        isLoading = true
         errorMessage = ""
+        
+#if DEBUG
+        if !isSignUp, DevAccount.matches(email: email, password: password) {
+            authManager.startDevSession()
+            return
+        }
+#endif
+        
+        isLoading = true
         
         if isSignUp {
             Auth.auth().createUser(withEmail: email, password: password) { result, error in
@@ -171,5 +187,6 @@ struct AuthView: View {
 struct AuthView_Previews: PreviewProvider {
     static var previews: some View {
         AuthView()
+            .environmentObject(AuthManager())
     }
 }

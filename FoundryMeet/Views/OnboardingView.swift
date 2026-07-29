@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Binding var isOnboardingCompleted: Bool
+    @ObservedObject private var repository = AppRepository.shared
     
     @State private var step = 1
     @State private var selectedRole: String? = nil
@@ -9,6 +10,8 @@ struct OnboardingView: View {
     @State private var selectedStage: String? = nil
     @State private var selectedSkills: Set<String> = []
     @State private var selectedGoal: String? = nil
+    @State private var isSaving = false
+    @State private var errorMessage = ""
     
     let stages = ["Idea", "Seed", "Series A+"]
     let skills = [
@@ -92,14 +95,19 @@ struct OnboardingView: View {
                     if step < 4 {
                         withAnimation { step += 1 }
                     } else {
-                        withAnimation { isOnboardingCompleted = true }
+                        finishOnboarding()
                     }
                 }) {
                     HStack {
-                        if step == 4 {
-                            Image(systemName: "sparkles")
+                        if isSaving {
+                            ProgressView()
+                                .tint(step == 4 ? AppColors.onSecondary : AppColors.onPrimary)
+                        } else {
+                            if step == 4 {
+                                Image(systemName: "sparkles")
+                            }
+                            Text(step == 4 ? "Start Matching" : "Continue")
                         }
-                        Text(step == 4 ? "Start Matching" : "Continue")
                     }
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(step == 4 ? AppColors.onSecondary : AppColors.onPrimary)
@@ -108,11 +116,40 @@ struct OnboardingView: View {
                     .background(step == 4 ? AppColors.secondary : AppColors.primary)
                     .cornerRadius(12)
                 }
+                .disabled(isSaving)
             }
             .padding(24)
             .background(AppColors.surface.opacity(0.9))
+
+            if !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.system(size: 13))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+            }
         }
         .background(AppColors.background.ignoresSafeArea())
+    }
+
+    private func finishOnboarding() {
+        errorMessage = ""
+        isSaving = true
+        Task {
+            do {
+                try await repository.saveOnboarding(
+                    role: selectedRole,
+                    location: location,
+                    stage: selectedStage,
+                    skills: Array(selectedSkills).sorted(),
+                    goal: selectedGoal
+                )
+                withAnimation { isOnboardingCompleted = true }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isSaving = false
+        }
     }
     
     // MARK: - Step 1

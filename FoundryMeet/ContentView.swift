@@ -2,20 +2,24 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var authManager = AuthManager()
-    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @StateObject private var repository = AppRepository.shared
     @State private var isOnboardingCompleted = false
 
     var body: some View {
         Group {
             if !authManager.isAuthenticated {
                 AuthView()
-            } else if !hasSeenOnboarding && !isOnboardingCompleted {
+            } else if !authManager.sessionReady {
+                ProgressView("Loading your network…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(AppColors.surface.ignoresSafeArea())
+            } else if !(authManager.hasCompletedOnboarding || isOnboardingCompleted) {
                 OnboardingView(isOnboardingCompleted: Binding(
                     get: { self.isOnboardingCompleted },
                     set: { newValue in
                         self.isOnboardingCompleted = newValue
                         if newValue {
-                            self.hasSeenOnboarding = true
+                            authManager.markOnboardingComplete()
                         }
                     }
                 ))
@@ -25,17 +29,17 @@ struct ContentView: View {
                         .tabItem {
                             Label("Discover", systemImage: "sparkles")
                         }
-                    
+
                     NetworkingHubView()
                         .tabItem {
                             Label("Hub", systemImage: "globe")
                         }
-                    
+
                     SchedulingView()
                         .tabItem {
                             Label("Schedule", systemImage: "calendar")
                         }
-                    
+
                     MatchHistoryView()
                         .tabItem {
                             Label("History", systemImage: "clock")
@@ -43,6 +47,8 @@ struct ContentView: View {
                 }
             }
         }
+        .environmentObject(authManager)
+        .environmentObject(repository)
     }
 }
 

@@ -13,6 +13,8 @@ targets:
       - package: Firebase
         product: FirebaseAuth
       - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
         product: FirebaseFirestore
     info:
       path: FoundryMeet/Info.plist
@@ -21,4 +23,4 @@ targets:
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
-    from: 10.0.0
+    from: 12.16.0
