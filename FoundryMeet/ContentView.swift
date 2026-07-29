@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var authManager = AuthManager()
-    @StateObject private var repository = AppRepository.shared
     @State private var isOnboardingCompleted = false
 
     var body: some View {
@@ -48,7 +47,7 @@ struct ContentView: View {
             }
         }
         .environmentObject(authManager)
-        .environmentObject(repository)
+        .environmentObject(AppRepository.shared)
     }
 }
 

@@ -1,29 +1,18 @@
 import SwiftUI
 
-struct DiscoveryProfile: Identifiable {
-    let id = UUID()
-    let name: String
-    let role: String
-    let imgUrl: String
-    let desc: String
-    let tags: [String]
-}
-
 struct DiscoveryView: View {
-    @State private var profiles = [
-        DiscoveryProfile(name: "Sarah Chen", role: "CTO @ Stealth AI", imgUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuA0QfBeBm1DioWiMlUSwaNwhkst_KPXGv2hscKZ2WCivesiC-ZRg8rn7JQFo1RjP_A9hbX26eOk7mEfxWofkPWxOji9sb8uLBOhotCKhc_rSfmXtqMhdrSxgVJkINqhpUT9dEYXN4r0iSz6ThAj72IKacQNHzUg_n-QsoKhhmFdFyhnKE7cZpOmD1WXAkKByP6UttP7z8BFt6BBTIyvpa3qmuB8_C4BY3BCoDvveSHfXMKYefVvbZfp1D-kqG0sq5xTW4JT0Z2QsNg", desc: "Potential GTM partners and Series A insights from founders who've scaled to $10M ARR.", tags: ["Natural Language Processing", "Cloud Infrastructure", "Scaling Teams"]),
-        DiscoveryProfile(name: "Marcus Aris", role: "CEO @ Bloom Logistics", imgUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBCtE5qu2rf2QU80DNGHCzWZ-AUgsifbN4BMvaOdZSLRFmeki7ZYM0JROldW9HKvoS1GPaoFUTwgYmTrDBWCv716Stg_0q8kl7EyI8MhjlzzOrxQ8a8YUfsbdkTeXDPhTD5bxusQN7mQcm0gZAkKIfP4bntsMxF21ixvM_CUU_ipbTMtXy4I87Bo78BUGpmJnKMPrBmIHjd-JDVgqIqJ2unLKKdSOkIfBbjbzaW216WKUxWJPBT24Vvgddbap3hKPkPMOBY9rQJo7U", desc: "Mentoring early-stage founders in the logistics space and exploring sustainable packaging tech.", tags: ["Operations", "Supply Chain AI", "Series B Prep"])
-    ]
-    
+    @EnvironmentObject private var repository: AppRepository
+    @State private var showProfile = false
+    @State private var errorMessage = ""
+    @State private var isWorking = false
+
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack(alignment: .top) {
                 AppColors.surface.ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        
-                        // Header text
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Curated for you")
                                 .font(.system(size: 24, weight: .semibold))
@@ -34,8 +23,7 @@ struct DiscoveryView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
-                        
-                        // Filter ScrollView
+
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 FilterChip(text: "Stage: Seed+", icon: "line.3.horizontal.decrease", isSelected: true)
@@ -45,9 +33,15 @@ struct DiscoveryView: View {
                             }
                             .padding(.horizontal, 20)
                         }
-                        
-                        // Profile Cards or Empty State
-                        if profiles.isEmpty {
+
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 13))
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 20)
+                        }
+
+                        if repository.discoveryFeed.isEmpty {
                             VStack(spacing: 16) {
                                 Spacer().frame(height: 60)
                                 Image(systemName: "sparkles")
@@ -65,16 +59,13 @@ struct DiscoveryView: View {
                             .frame(maxWidth: .infinity)
                         } else {
                             VStack(spacing: 24) {
-                                ForEach(profiles) { profile in
+                                ForEach(repository.discoveryFeed) { profile in
                                     DiscoveryProfileCard(
                                         profile: profile,
-                                        onDismiss: { removeProfile(profile) },
-                                        onConnect: { removeProfile(profile) }
+                                        isDisabled: isWorking,
+                                        onDismiss: { handleDismiss(profile) },
+                                        onConnect: { handleConnect(profile) }
                                     )
-                                    .transition(.asymmetric(
-                                        insertion: .identity,
-                                        removal: .modifier(active: SlideOutModifier(offset: -UIScreen.main.bounds.width), identity: SlideOutModifier(offset: 0))
-                                    ))
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -94,28 +85,47 @@ struct DiscoveryView: View {
                         .padding(.leading, 8)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .frame(width: 32, height: 32)
-                        .foregroundColor(.gray)
+                    Button(action: { showProfile = true }) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                            .foregroundColor(.gray)
+                    }
                 }
+            }
+            .sheet(isPresented: $showProfile) {
+                ProfileView()
+            }
+            .task {
+                try? await repository.refreshAll()
             }
         }
     }
-    
-    private func removeProfile(_ profile: DiscoveryProfile) {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            profiles.removeAll { $0.id == profile.id }
+
+    private func handleDismiss(_ profile: DiscoveryCandidate) {
+        isWorking = true
+        errorMessage = ""
+        Task {
+            do {
+                try await repository.dismissCandidate(profile)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isWorking = false
         }
     }
-}
 
-struct SlideOutModifier: ViewModifier {
-    let offset: CGFloat
-    func body(content: Content) -> some View {
-        content
-            .offset(x: offset)
-            .opacity(offset == 0 ? 1 : 0)
+    private func handleConnect(_ profile: DiscoveryCandidate) {
+        isWorking = true
+        errorMessage = ""
+        Task {
+            do {
+                try await repository.connectCandidate(profile)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isWorking = false
+        }
     }
 }
 
@@ -123,10 +133,10 @@ struct FilterChip: View {
     var text: String
     var icon: String? = nil
     var isSelected: Bool
-    
+
     var body: some View {
         HStack(spacing: 6) {
-            if let icon = icon {
+            if let icon {
                 Image(systemName: icon)
                     .font(.system(size: 14))
             }
@@ -142,32 +152,42 @@ struct FilterChip: View {
 }
 
 struct DiscoveryProfileCard: View {
-    var profile: DiscoveryProfile
+    var profile: DiscoveryCandidate
+    var isDisabled: Bool = false
     var onDismiss: () -> Void
     var onConnect: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Image Header
             ZStack(alignment: .bottomLeading) {
-                AsyncImage(url: URL(string: profile.imgUrl)) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
-                    Color.gray.opacity(0.3)
+                Group {
+                    if let url = URL(string: profile.imgUrl), !profile.imgUrl.isEmpty {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } placeholder: {
+                            Color.gray.opacity(0.3)
+                        }
+                    } else {
+                        profile.accentColor.opacity(0.2)
+                            .overlay(
+                                Text(profile.initials)
+                                    .font(.system(size: 48, weight: .bold))
+                                    .foregroundColor(profile.accentColor)
+                            )
+                    }
                 }
                 .frame(height: 192)
                 .clipped()
-                
-                // Gradient overlay
+
                 LinearGradient(
                     colors: [Color.black.opacity(0.7), Color.clear],
                     startPoint: .bottom,
                     endPoint: .top
                 )
                 .frame(height: 120)
-                
+
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.name)
@@ -193,15 +213,13 @@ struct DiscoveryProfileCard: View {
                 }
                 .padding(24)
             }
-            
-            // Content
+
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("TOP EXPERTISE")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(AppColors.onSurfaceVariant)
-                    
-                    // Tags
+
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
                             ForEach(profile.tags, id: \.self) { tag in
@@ -216,12 +234,12 @@ struct DiscoveryProfileCard: View {
                         }
                     }
                 }
-                
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("LOOKING FOR")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(Color(hex: 0x5a4309))
-                    
+
                     Text(profile.desc)
                         .font(.system(size: 16))
                         .foregroundColor(AppColors.onSurface)
@@ -229,7 +247,7 @@ struct DiscoveryProfileCard: View {
                 .padding(16)
                 .background(AppColors.surfaceContainerLow)
                 .cornerRadius(12)
-                
+
                 HStack(spacing: 12) {
                     Button(action: onConnect) {
                         HStack {
@@ -243,7 +261,8 @@ struct DiscoveryProfileCard: View {
                         .background(AppColors.primary)
                         .cornerRadius(12)
                     }
-                    
+                    .disabled(isDisabled)
+
                     Button(action: onDismiss) {
                         Image(systemName: "xmark")
                             .foregroundColor(AppColors.onSurface)
@@ -251,6 +270,7 @@ struct DiscoveryProfileCard: View {
                             .background(AppColors.surfaceContainerHighest)
                             .cornerRadius(12)
                     }
+                    .disabled(isDisabled)
                 }
             }
             .padding(24)
@@ -264,5 +284,6 @@ struct DiscoveryProfileCard: View {
 struct DiscoveryView_Previews: PreviewProvider {
     static var previews: some View {
         DiscoveryView()
+            .environmentObject(AppRepository.shared)
     }
 }

@@ -252,10 +252,10 @@ final class AppRepository: ObservableObject {
         }
         let snapshot = try await db.collection("matches")
             .whereField("userId", isEqualTo: userId)
-            .whereField("status", isEqualTo: "accepted")
             .getDocuments()
         return snapshot.documents
             .compactMap { PendingMatch(id: $0.documentID, firestoreData: $0.data()) }
+            .filter { $0.status == "accepted" }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -329,18 +329,19 @@ enum RepositoryError: LocalizedError {
 
 private extension UserProfile {
     var firestoreData: [String: Any] {
-        [
+        var data: [String: Any] = [
             "email": email,
             "displayName": displayName,
-            "role": role as Any,
-            "location": location as Any,
-            "stage": stage as Any,
             "skills": skills,
-            "goal": goal as Any,
             "onboardingCompleted": onboardingCompleted,
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": Timestamp(date: updatedAt)
         ]
+        if let role { data["role"] = role }
+        if let location { data["location"] = location }
+        if let stage { data["stage"] = stage }
+        if let goal { data["goal"] = goal }
+        return data
     }
 
     init(id: String, firestoreData data: [String: Any]) {
