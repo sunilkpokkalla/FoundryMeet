@@ -1,5 +1,33 @@
 import Foundation
 
+struct VerifiedCredential: Codable, Identifiable, Equatable {
+    var id: String
+    var title: String
+    var issuer: String
+    var url: String
+    /// pending | verified | rejected
+    var status: String
+    var createdAt: Date
+
+    var isVerified: Bool { status == "verified" }
+
+    init(
+        id: String = UUID().uuidString,
+        title: String,
+        issuer: String,
+        url: String,
+        status: String = "pending",
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.title = title
+        self.issuer = issuer
+        self.url = url
+        self.status = status
+        self.createdAt = createdAt
+    }
+}
+
 struct UserProfile: Codable, Equatable {
     var id: String
     var email: String
@@ -9,6 +37,10 @@ struct UserProfile: Codable, Equatable {
     var stage: String?
     var skills: [String]
     var goal: String?
+    var bio: String?
+    var industry: String?
+    var credentials: [VerifiedCredential]
+    var isDiscoverable: Bool
     var onboardingCompleted: Bool
     var createdAt: Date
     var updatedAt: Date
@@ -22,6 +54,10 @@ struct UserProfile: Codable, Equatable {
         stage: String? = nil,
         skills: [String] = [],
         goal: String? = nil,
+        bio: String? = nil,
+        industry: String? = nil,
+        credentials: [VerifiedCredential] = [],
+        isDiscoverable: Bool = true,
         onboardingCompleted: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -34,6 +70,10 @@ struct UserProfile: Codable, Equatable {
         self.stage = stage
         self.skills = skills
         self.goal = goal
+        self.bio = bio
+        self.industry = industry
+        self.credentials = credentials
+        self.isDiscoverable = isDiscoverable
         self.onboardingCompleted = onboardingCompleted
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -49,4 +89,26 @@ struct UserProfile: Codable, Equatable {
         }
         return String(email.prefix(1)).uppercased()
     }
+}
+
+struct MessageThread: Codable, Identifiable, Equatable {
+    var id: String
+    var participantIds: [String]
+    var participantNames: [String: String]
+    var lastMessage: String
+    var updatedAt: Date
+}
+
+struct ChatMessage: Codable, Identifiable, Equatable {
+    var id: String
+    var threadId: String
+    var senderId: String
+    var text: String
+    var createdAt: Date
+}
+
+struct DiscoveryFilters: Equatable {
+    var stage: String? = nil
+    var goal: String? = nil
+    var industry: String? = nil
 }

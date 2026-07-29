@@ -2,12 +2,15 @@ import SwiftUI
 
 struct NetworkingHubView: View {
     @EnvironmentObject private var repository: AppRepository
+    @EnvironmentObject private var authManager: AuthManager
     @State private var selectedBuilder: DiscoveryCandidate? = nil
     @State private var statusMessage = ""
     @State private var showProfile = false
+    @State private var activeThread: MessageThread? = nil
 
     private var builders: [DiscoveryCandidate] {
-        SeedCatalog.candidates
+        let live = repository.networkProfiles.map(DiscoveryCandidate.init(profile:))
+        return live.isEmpty ? SeedCatalog.candidates : live
     }
 
     var body: some View {
@@ -101,16 +104,23 @@ struct NetworkingHubView: View {
                             case .connect:
                                 try await repository.connectCandidate(builder)
                                 statusMessage = "Coffee chat requested with \(builder.name)."
+                                selectedBuilder = nil
                             case .message:
-                                statusMessage = "Messaging is coming next — request saved as a match for now."
-                                try await repository.connectCandidate(builder)
+                                let thread = try await repository.openOrCreateThread(with: builder)
+                                selectedBuilder = nil
+                                activeThread = thread
                             }
-                            selectedBuilder = nil
                         } catch {
                             statusMessage = error.localizedDescription
                         }
                     }
                 }
+            }
+            .sheet(item: $activeThread) { thread in
+                NavigationStack {
+                    ConversationView(thread: thread)
+                }
+                .environmentObject(authManager)
             }
         }
     }

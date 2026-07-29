@@ -1,136 +1,138 @@
 import SwiftUI
 import FirebaseAuth
+import AuthenticationServices
+import CryptoKit
 
 struct AuthView: View {
     @EnvironmentObject private var authManager: AuthManager
     @State private var email = ""
     @State private var password = ""
+    @State private var confirmPassword = ""
     @State private var isSignUp = false
     @State private var errorMessage = ""
+    @State private var infoMessage = ""
     @State private var isLoading = false
-    
+    @State private var currentNonce: String?
+    @StateObject private var appleCoordinator = AppleSignInCoordinator()
+
     var body: some View {
         ZStack {
             AppColors.surface.ignoresSafeArea()
-            
-            VStack(spacing: 32) {
-                // Header
-                VStack(spacing: 12) {
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 72, height: 72)
-                        .padding(.bottom, 8)
-                    
-                    Text("FoundryMeet")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(AppColors.onSurface)
-                    
-                    Text(isSignUp ? "Create an account to join the network." : "Welcome back to the network.")
-                        .font(.system(size: 16))
-                        .foregroundColor(AppColors.onSurfaceVariant)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 40)
-                
-                // Form
-                VStack(spacing: 16) {
-                    TextField("Email", text: $email)
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .padding()
-                        .background(AppColors.surfaceContainerLowest)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                    
-                    SecureField("Password", text: $password)
-                        .padding()
-                        .background(AppColors.surfaceContainerLowest)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                    
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
-                            .font(.system(size: 14))
-                            .foregroundColor(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 4)
-                    }
-                }
-                .padding(.horizontal, 24)
-                
-                // Action Buttons
-                VStack(spacing: 16) {
-                    Button(action: handleAuth) {
-                        HStack {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: AppColors.onPrimary))
-                            } else {
-                                Text(isSignUp ? "Sign Up" : "Sign In")
-                                    .font(.system(size: 16, weight: .semibold))
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(AppColors.primary)
-                        .foregroundColor(AppColors.onPrimary)
-                        .cornerRadius(12)
-                    }
-                    .disabled(isLoading || email.isEmpty || password.isEmpty)
-                    .opacity((isLoading || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
-                    
-                    Button(action: {
-                        withAnimation {
-                            isSignUp.toggle()
-                            errorMessage = ""
-                        }
-                    }) {
-                        Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(AppColors.secondary)
-                    }
-                    
-#if DEBUG
-                    Button(action: authManager.startDevSession) {
-                        Text("Skip sign-in (Debug)")
-                            .font(.system(size: 13, weight: .medium))
+
+            ScrollView {
+                VStack(spacing: 28) {
+                    VStack(spacing: 12) {
+                        Image("Logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 64, height: 64)
+
+                        Text("FoundryMeet")
+                            .font(.system(size: 30, weight: .bold))
+                            .tracking(-0.5)
+                            .foregroundColor(AppColors.onSurface)
+
+                        Text(isSignUp ? "Create an account to join the network." : "Welcome back to the network.")
+                            .font(.system(size: 15))
                             .foregroundColor(AppColors.onSurfaceVariant)
-                            .underline()
+                            .multilineTextAlignment(.center)
                     }
-#endif
-                }
-                .padding(.horizontal, 24)
-                
-                Spacer()
-                
-                // Placeholder for Social Auth
-                VStack(spacing: 16) {
-                    Text("Or continue with")
-                        .font(.system(size: 14))
-                        .foregroundColor(AppColors.onSurfaceVariant)
-                    
-                    HStack(spacing: 16) {
-                        Button(action: {}) {
+                    .padding(.top, 36)
+
+                    VStack(spacing: 12) {
+                        authField("Email", text: $email, isSecure: false)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+
+                        authField("Password", text: $password, isSecure: true)
+
+                        if isSignUp {
+                            authField("Confirm password", text: $confirmPassword, isSecure: true)
+                        }
+
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .font(.system(size: 13))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                        }
+                        if !infoMessage.isEmpty {
+                            Text(infoMessage)
+                                .font(.system(size: 13))
+                                .foregroundColor(AppColors.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+
+                    VStack(spacing: 14) {
+                        Button(action: handleAuth) {
                             HStack {
-                                Image(systemName: "applelogo")
-                                Text("Apple")
-                                    .font(.system(size: 16, weight: .medium))
+                                if isLoading {
+                                    ProgressView().tint(AppColors.onPrimary)
+                                } else {
+                                    Text(isSignUp ? "Sign Up" : "Sign In")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(AppColors.surfaceContainerHigh)
-                            .foregroundColor(AppColors.onSurface)
+                            .padding(.vertical, 15)
+                            .background(AppColors.primary)
+                            .foregroundColor(AppColors.onPrimary)
                             .cornerRadius(12)
                         }
-                        
-                        Button(action: {}) {
+                        .disabled(isLoading || email.isEmpty || password.isEmpty)
+
+                        if !isSignUp {
+                            Button("Forgot password?") {
+                                sendPasswordReset()
+                            }
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                        }
+
+                        Button {
+                            withAnimation {
+                                isSignUp.toggle()
+                                errorMessage = ""
+                                infoMessage = ""
+                            }
+                        } label: {
+                            Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(AppColors.secondary)
+                        }
+
+#if DEBUG
+                        Button(action: authManager.startDevSession) {
+                            Text("Skip sign-in (Debug)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(AppColors.onSurfaceVariant)
+                                .underline()
+                        }
+#endif
+                    }
+                    .padding(.horizontal, 24)
+
+                    VStack(spacing: 14) {
+                        Text("Or continue with")
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+
+                        SignInWithAppleButton(.signIn) { request in
+                            let nonce = randomNonceString()
+                            currentNonce = nonce
+                            request.requestedScopes = [.fullName, .email]
+                            request.nonce = sha256(nonce)
+                        } onCompletion: { result in
+                            handleAppleResult(result)
+                        }
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 48)
+                        .cornerRadius(12)
+
+                        Button(action: handleGoogleTap) {
                             HStack {
                                 Image(systemName: "g.circle.fill")
                                 Text("Google")
@@ -138,50 +140,192 @@ struct AuthView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(AppColors.surfaceContainerHigh)
+                            .background(AppColors.surfaceContainerLowest)
                             .foregroundColor(AppColors.onSurface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(AppColors.hairline, lineWidth: 1)
+                            )
                             .cornerRadius(12)
                         }
                     }
                     .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
                 }
-                .padding(.bottom, 40)
             }
         }
+        .onAppear {
+            appleCoordinator.onError = { errorMessage = $0 }
+        }
     }
-    
+
+    private func authField(_ title: String, text: Binding<String>, isSecure: Bool) -> some View {
+        Group {
+            if isSecure {
+                SecureField(title, text: text)
+            } else {
+                TextField(title, text: text)
+            }
+        }
+        .padding()
+        .background(AppColors.surfaceContainerLowest)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
+    }
+
     private func handleAuth() {
         errorMessage = ""
-        
+        infoMessage = ""
+
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard trimmedEmail.contains("@"), trimmedEmail.contains(".") else {
+            errorMessage = "Enter a valid email address."
+            return
+        }
+        guard password.count >= 6 else {
+            errorMessage = "Password must be at least 6 characters."
+            return
+        }
+        if isSignUp, password != confirmPassword {
+            errorMessage = "Passwords do not match."
+            return
+        }
+
 #if DEBUG
-        if !isSignUp, DevAccount.matches(email: email, password: password) {
+        if !isSignUp, DevAccount.matches(email: trimmedEmail, password: password) {
             authManager.startDevSession()
             return
         }
 #endif
-        
+
         isLoading = true
-        
         if isSignUp {
-            Auth.auth().createUser(withEmail: email, password: password) { result, error in
+            Auth.auth().createUser(withEmail: trimmedEmail, password: password) { result, error in
                 DispatchQueue.main.async {
                     self.isLoading = false
-                    if let error = error {
-                        self.errorMessage = error.localizedDescription
+                    if let error {
+                        self.errorMessage = friendlyAuthError(error)
+                        return
                     }
+                    result?.user.sendEmailVerification(completion: nil)
+                    self.infoMessage = "Account created. Check your email to verify."
                 }
             }
         } else {
-            Auth.auth().signIn(withEmail: email, password: password) { result, error in
+            Auth.auth().signIn(withEmail: trimmedEmail, password: password) { _, error in
                 DispatchQueue.main.async {
                     self.isLoading = false
-                    if let error = error {
-                        self.errorMessage = error.localizedDescription
+                    if let error {
+                        self.errorMessage = friendlyAuthError(error)
                     }
                 }
             }
         }
     }
+
+    private func sendPasswordReset() {
+        errorMessage = ""
+        infoMessage = ""
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard trimmedEmail.contains("@") else {
+            errorMessage = "Enter your email above, then tap Forgot password."
+            return
+        }
+        isLoading = true
+        Auth.auth().sendPasswordReset(withEmail: trimmedEmail) { error in
+            DispatchQueue.main.async {
+                self.isLoading = false
+                if let error {
+                    self.errorMessage = friendlyAuthError(error)
+                } else {
+                    self.infoMessage = "Password reset email sent."
+                }
+            }
+        }
+    }
+
+    private func handleGoogleTap() {
+        errorMessage = ""
+        infoMessage = "Enable the Google provider in Firebase Console, then add the GoogleSignIn package to finish Google login."
+    }
+
+    private func handleAppleResult(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+        case .success(let authorization):
+            guard
+                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                let tokenData = credential.identityToken,
+                let idToken = String(data: tokenData, encoding: .utf8),
+                let nonce = currentNonce
+            else {
+                errorMessage = "Apple Sign In failed."
+                return
+            }
+            isLoading = true
+            let firebaseCredential = OAuthProvider.appleCredential(
+                withIDToken: idToken,
+                rawNonce: nonce,
+                fullName: credential.fullName
+            )
+            Auth.auth().signIn(with: firebaseCredential) { _, error in
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    if let error {
+                        self.errorMessage = friendlyAuthError(error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private func friendlyAuthError(_ error: Error) -> String {
+    let ns = error as NSError
+    if let code = AuthErrorCode(rawValue: ns.code) {
+        switch code {
+        case .wrongPassword, .invalidCredential: return "Incorrect email or password."
+        case .userNotFound: return "No account found for that email."
+        case .emailAlreadyInUse: return "That email is already registered."
+        case .weakPassword: return "Choose a stronger password (6+ characters)."
+        case .networkError: return "Network error. Try again."
+        case .invalidEmail: return "Enter a valid email address."
+        default: break
+        }
+    }
+    return error.localizedDescription
+}
+
+private func randomNonceString(length: Int = 32) -> String {
+    precondition(length > 0)
+    let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+    var result = ""
+    var remaining = length
+    while remaining > 0 {
+        let randoms: [UInt8] = (0..<16).map { _ in UInt8.random(in: 0...255) }
+        randoms.forEach { random in
+            if remaining == 0 { return }
+            if random < charset.count {
+                result.append(charset[Int(random)])
+                remaining -= 1
+            }
+        }
+    }
+    return result
+}
+
+private func sha256(_ input: String) -> String {
+    let data = Data(input.utf8)
+    let hash = SHA256.hash(data: data)
+    return hash.map { String(format: "%02x", $0) }.joined()
+}
+
+final class AppleSignInCoordinator: NSObject, ObservableObject {
+    var onError: ((String) -> Void)?
 }
 
 struct AuthView_Previews: PreviewProvider {

@@ -34,10 +34,28 @@ struct DiscoveryView: View {
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
-                                    FilterChip(text: "Stage: Seed+", icon: "slider.horizontal.3", isSelected: true)
-                                    FilterChip(text: "Goal: Fundraising", isSelected: false)
-                                    FilterChip(text: "Industry: AI/ML", isSelected: false)
-                                    FilterChip(text: "Location", isSelected: false)
+                                    FilterChip(
+                                        text: "Stage: Seed+",
+                                        icon: "slider.horizontal.3",
+                                        isSelected: repository.filters.stage == "Seed+"
+                                    ) {
+                                        toggleFilter(stage: "Seed+")
+                                    }
+                                    FilterChip(
+                                        text: "Goal: Fundraising",
+                                        isSelected: repository.filters.goal == "Fundraising"
+                                    ) {
+                                        toggleFilter(goal: "Fundraising")
+                                    }
+                                    FilterChip(
+                                        text: "Industry: AI/ML",
+                                        isSelected: repository.filters.industry == "AI"
+                                    ) {
+                                        toggleFilter(industry: "AI")
+                                    }
+                                    FilterChip(text: "Clear", isSelected: false) {
+                                        repository.setFilters(DiscoveryFilters())
+                                    }
                                 }
                                 .padding(.horizontal, 24)
                             }
@@ -129,31 +147,49 @@ struct DiscoveryView: View {
             isWorking = false
         }
     }
+
+    private func toggleFilter(stage: String? = nil, goal: String? = nil, industry: String? = nil) {
+        var next = repository.filters
+        if let stage {
+            next.stage = next.stage == stage ? nil : stage
+        }
+        if let goal {
+            next.goal = next.goal == goal ? nil : goal
+        }
+        if let industry {
+            next.industry = next.industry == industry ? nil : industry
+        }
+        repository.setFilters(next)
+    }
 }
 
 struct FilterChip: View {
     var text: String
     var icon: String? = nil
     var isSelected: Bool
+    var action: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 6) {
-            if let icon {
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .medium))
+        Button(action: { action?() }) {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .medium))
+                }
+                Text(text)
+                    .font(.system(size: 13, weight: .medium))
             }
-            Text(text)
-                .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(isSelected ? AppColors.accentSoft : AppColors.surfaceContainerLowest)
+            .foregroundColor(isSelected ? AppColors.secondary : AppColors.onSurfaceVariant)
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? AppColors.secondary.opacity(0.18) : AppColors.hairline, lineWidth: 1)
+            )
+            .clipShape(Capsule())
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(isSelected ? AppColors.accentSoft : AppColors.surfaceContainerLowest)
-        .foregroundColor(isSelected ? AppColors.secondary : AppColors.onSurfaceVariant)
-        .overlay(
-            Capsule()
-                .stroke(isSelected ? AppColors.secondary.opacity(0.18) : AppColors.hairline, lineWidth: 1)
-        )
-        .clipShape(Capsule())
+        .buttonStyle(.plain)
     }
 }
 

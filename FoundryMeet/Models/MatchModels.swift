@@ -55,6 +55,9 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     let desc: String
     let tags: [String]
     let industry: String
+    var stage: String? = nil
+    var goal: String? = nil
+    var credentials: [VerifiedCredential] = []
 
     var initials: String {
         let parts = name.split(separator: " ")
@@ -77,6 +80,47 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         ]
         let hash = abs(id.hashValue)
         return palette[hash % palette.count]
+    }
+
+    init(
+        id: String,
+        name: String,
+        role: String,
+        imgUrl: String,
+        desc: String,
+        tags: [String],
+        industry: String,
+        stage: String? = nil,
+        goal: String? = nil,
+        credentials: [VerifiedCredential] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.imgUrl = imgUrl
+        self.desc = desc
+        self.tags = tags
+        self.industry = industry
+        self.stage = stage
+        self.goal = goal
+        self.credentials = credentials
+    }
+
+    init(profile: UserProfile) {
+        self.init(
+            id: profile.id,
+            name: profile.displayName.isEmpty ? "Founder" : profile.displayName,
+            role: profile.role ?? "Founder",
+            imgUrl: "",
+            desc: profile.bio?.isEmpty == false
+                ? profile.bio!
+                : (profile.goal.map { "Looking for: \($0)" } ?? "Open to high-signal coffee chats."),
+            tags: profile.skills,
+            industry: profile.industry ?? profile.stage ?? "Startup",
+            stage: profile.stage,
+            goal: profile.goal,
+            credentials: profile.credentials
+        )
     }
 }
 
