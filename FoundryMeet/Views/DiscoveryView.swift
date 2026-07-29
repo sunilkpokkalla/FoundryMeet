@@ -75,24 +75,10 @@ struct DiscoveryView: View {
                     }
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 28, height: 28)
-                        .padding(.leading, 8)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showProfile = true }) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                            .foregroundColor(.gray)
-                    }
-                }
-            }
+            .appNavigationChrome(
+                showProfile: $showProfile,
+                profileInitials: repository.profile?.initials ?? ""
+            )
             .sheet(isPresented: $showProfile) {
                 ProfileView()
             }
