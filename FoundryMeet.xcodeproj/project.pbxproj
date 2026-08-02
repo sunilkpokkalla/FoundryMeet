@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		03080999E934E6DDFB7BDD56 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 809C84BC925A5E333FEB86C9 /* GoogleSignInSwift */; };
 		03E4EC03B4720A866A4D17F9 /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6A1D566CD3C165DF08C3F1 /* MessagesView.swift */; };
 		071AA8FE7296C6F34867567A /* AppRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D42093543269A721723F2C71 /* AppRepository.swift */; };
 		0A90125FFBB1ABF559782D57 /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF97FF73C70591A9DA2734C2 /* UserProfile.swift */; };
 		0AA465D20905B74821980045 /* MatchNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E810429FF57576EB95726613 /* MatchNotesView.swift */; };
+		0BF1B9E7E20FAB61A6D895CA /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 2E5BBA4B1DB036FB5DCEE3F8 /* GoogleSignIn */; };
 		174FEEAC2ACEF6F8BB55CABC /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B39764E724A6424013283BC /* AuthManager.swift */; };
 		17B4A2B3AA784B964A7903B0 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = E6D10DC36E5A374E2D039F48 /* FirebaseAnalytics */; };
 		2BBB68BCFA19E20F69F33A53 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DBFEA2849FEF2171849697 /* ProfileView.swift */; };
@@ -41,7 +43,7 @@
 		4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchModels.swift; sourceTree = "<group>"; };
 		50B84F4B4F694E651E433F91 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		65DBFEA2849FEF2171849697 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
-		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		8B39764E724A6424013283BC /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		8C88E22C8C7EC98421373CA8 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -68,6 +70,8 @@
 				3823C1C7A031E78E1007D0FA /* FirebaseAuth in Frameworks */,
 				9E52B3D9E2644ADA2AA41BDD /* FirebaseCore in Frameworks */,
 				486362828FDEB4A8AE2E29F5 /* FirebaseFirestore in Frameworks */,
+				0BF1B9E7E20FAB61A6D895CA /* GoogleSignIn in Frameworks */,
+				03080999E934E6DDFB7BDD56 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -164,6 +168,8 @@
 				B2A6663042E0FDEE2F78775F /* FirebaseAuth */,
 				F0EE82E406F71E3F5AADBFF2 /* FirebaseCore */,
 				0A2B3770CBBC5046E511A275 /* FirebaseFirestore */,
+				2E5BBA4B1DB036FB5DCEE3F8 /* GoogleSignIn */,
+				809C84BC925A5E333FEB86C9 /* GoogleSignInSwift */,
 			);
 			productName = FoundryMeet;
 			productReference = 68D8E06304F89A84341E7A92 /* FoundryMeet.app */;
@@ -177,6 +183,12 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					757EFBF5C0D697D070D37345 = {
+						DevelopmentTeam = 2K4C865Z8F;
+						ProvisioningStyle = Automatic;
+					};
+				};
 			};
 			buildConfigurationList = 435816FC2761A06E53AF5955 /* Build configuration list for PBXProject "FoundryMeet" */;
 			developmentRegion = en;
@@ -189,6 +201,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				10E04B2D0B9778A76F029FBB /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				206B3FC459267F90D92896AE /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AC4F74B61D01C809B79E2180 /* Products */;
@@ -303,16 +316,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_EXPLICIT_MODULES = NO;
-				CODE_SIGN_ENTITLEMENTS = FoundryMeet/FoundryMeet.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.startupnetwork.FoundryMeet;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ambright.foundrymeet;
 				SDKROOT = iphoneos;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -324,16 +339,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_EXPLICIT_MODULES = NO;
-				CODE_SIGN_ENTITLEMENTS = FoundryMeet/FoundryMeet.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.startupnetwork.FoundryMeet;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ambright.foundrymeet;
 				SDKROOT = iphoneos;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -436,6 +453,14 @@
 				minimumVersion = 12.16.0;
 			};
 		};
+		206B3FC459267F90D92896AE /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -443,6 +468,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 10E04B2D0B9778A76F029FBB /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		2E5BBA4B1DB036FB5DCEE3F8 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 206B3FC459267F90D92896AE /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		809C84BC925A5E333FEB86C9 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 206B3FC459267F90D92896AE /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 		B2A6663042E0FDEE2F78775F /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
