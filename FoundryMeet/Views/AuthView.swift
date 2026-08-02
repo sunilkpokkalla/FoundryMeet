@@ -1,7 +1,10 @@
 import SwiftUI
+import UIKit
+import FirebaseCore
 import FirebaseAuth
 import AuthenticationServices
 import CryptoKit
+import GoogleSignIn
 
 struct AuthView: View {
     @EnvironmentObject private var authManager: AuthManager
@@ -249,7 +252,69 @@ struct AuthView: View {
 
     private func handleGoogleTap() {
         errorMessage = ""
-        infoMessage = "Enable the Google provider in Firebase Console, then add the GoogleSignIn package to finish Google login."
+        infoMessage = ""
+
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            errorMessage = "Google Sign-In is not configured."
+            return
+        }
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+
+        guard let presenter = topViewController() else {
+            errorMessage = "Unable to present Google Sign-In."
+            return
+        }
+
+        isLoading = true
+        GIDSignIn.sharedInstance.signIn(withPresenting: presenter) { result, error in
+            if let error {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    if (error as NSError).code == GIDSignInError.canceled.rawValue {
+                        return
+                    }
+                    self.errorMessage = error.localizedDescription
+                }
+                return
+            }
+
+            guard
+                let user = result?.user,
+                let idToken = user.idToken?.tokenString
+            else {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.errorMessage = "Google Sign-In failed."
+                }
+                return
+            }
+
+            let credential = GoogleAuthProvider.credential(
+                withIDToken: idToken,
+                accessToken: user.accessToken.tokenString
+            )
+            Auth.auth().signIn(with: credential) { _, error in
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    if let error {
+                        self.errorMessage = friendlyAuthError(error)
+                    }
+                }
+            }
+        }
+    }
+
+    private func topViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window = scenes
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)
+            ?? scenes.first?.windows.first
+        var top = window?.rootViewController
+        while let presented = top?.presentedViewController {
+            top = presented
+        }
+        return top
     }
 
     private func handleAppleResult(_ result: Result<ASAuthorization, Error>) {

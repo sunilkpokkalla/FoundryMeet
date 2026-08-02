@@ -1,6 +1,6 @@
 name: FoundryMeet
 options:
-  bundleIdPrefix: com.startupnetwork
+  bundleIdPrefix: com.ambright
 settings:
   base:
     # Xcode 26 Explicit Modules fails on FirebaseFirestoreInternal binary headers
@@ -22,23 +22,42 @@ targets:
         product: FirebaseCore
       - package: Firebase
         product: FirebaseFirestore
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
     settings:
       base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ambright.foundrymeet
+        DEVELOPMENT_TEAM: 2K4C865Z8F
+        CODE_SIGN_STYLE: Automatic
         SWIFT_ENABLE_EXPLICIT_MODULES: NO
         CLANG_ENABLE_EXPLICIT_MODULES: NO
-        CODE_SIGN_ENTITLEMENTS: FoundryMeet/FoundryMeet.entitlements
-    entitlements:
-      path: FoundryMeet/FoundryMeet.entitlements
-      properties:
-        com.apple.developer.applesignin: [Default]
+        # Ensure orientations land in the archived Info.plist (App Store error 90474).
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        TARGETED_DEVICE_FAMILY: "1,2"
     info:
       path: FoundryMeet/Info.plist
       properties:
         UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        "UISupportedInterfaceOrientations~ipad":
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         CFBundleURLTypes:
           - CFBundleURLSchemes:
-              - com.googleusercontent.apps.557443174588-e6d3cslgqabaivuh1ib8d2spu11un4er
+              - com.googleusercontent.apps.831784077430-neuo5eqbs106obig2v87qrcmlvqea2s0
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
     from: 12.16.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS.git
+    from: 8.0.0
