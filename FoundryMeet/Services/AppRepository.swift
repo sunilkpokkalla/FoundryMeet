@@ -1,6 +1,7 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import UserNotifications
 
 @MainActor
 final class AppRepository: ObservableObject {
@@ -283,7 +284,6 @@ final class AppRepository: ObservableObject {
             )
             inviteStatus = "local"
         } catch {
-            // Continue — chat still saves even if calendar permission denied.
             inviteStatus = "failed"
         }
 
@@ -293,6 +293,8 @@ final class AppRepository: ObservableObject {
             candidateId: match.candidateId,
             candidateName: match.candidateName,
             candidateRole: match.candidateRole,
+            organizerName: me.displayName.isEmpty ? "Founder" : me.displayName,
+            participantIds: [userId, match.candidateId].sorted(),
             dayLabel: dayLabel,
             timeLabel: timeLabel,
             setting: setting,
@@ -315,52 +317,108 @@ final class AppRepository: ObservableObject {
         chats.insert(chat, at: 0)
         pendingMatches.removeAll { $0.id == match.id }
 
-        let ics = ICSBuilder.event(
-            uid: chat.id,
-            summary: "FoundryMeet coffee with \(match.candidateName)",
-            description: talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : talkingPoints,
-            startsAt: startsAt,
-            endsAt: endsAt,
-            location: setting,
-            organizerEmail: me.email
-        )
-
-        var recipients = [me.email]
-        if let candidate = try? await loadProfile(userId: match.candidateId), !candidate.email.isEmpty {
-            recipients.append(candidate.email)
-        }
-
-        try await enqueueMail(
-            to: Array(Set(recipients)),
-            subject: "Coffee chat confirmed with \(match.candidateName)",
-            htmlBody: """
-            <p>Your FoundryMeet coffee chat is confirmed.</p>
-            <p><strong>\(dayLabel) · \(timeLabel)</strong><br/>Setting: \(setting)</p>
-            <p>An .ics calendar invite is attached.</p>
-            """,
-            textBody: "Coffee chat confirmed: \(dayLabel) \(timeLabel). Setting: \(setting).",
-            icsContent: ics,
-            template: "chat_invite",
-            relatedChatId: chat.id
-        )
-
-        if inviteStatus == "local" {
-            // Mark emailed once outbox is queued; Cloud Function completes delivery.
-            var emailed = chat
-            emailed.inviteStatus = "emailed"
-            try await saveChat(emailed)
-            if let index = chats.firstIndex(where: { $0.id == chat.id }) {
-                chats[index] = emailed
-            }
-        }
-
+        // In-app reminders for both people — no email API required.
         PushNotificationService.shared.scheduleChatReminder(
             chatId: chat.id,
             title: "Coffee with \(match.candidateName) in 15 minutes",
             startsAt: startsAt
         )
+        markChatInviteSynced(chat.id)
+
+        try await enqueuePush(
+            recipientIds: [match.candidateId],
+            title: "Coffee chat confirmed",
+            body: "\(chat.organizerName) scheduled \(dayLabel) · \(timeLabel)",
+            chatId: chat.id
+        )
 
         return chat
+    }
+
+    /// When either person opens the app, add calendar + local reminder for shared chats.
+    func syncIncomingChatInvites() async {
+        guard let userId else { return }
+        for chat in chats where chat.status == "scheduled" {
+            guard let startsAt = chat.startsAt, startsAt > Date() else { continue }
+            guard !hasSyncedChatInvite(chat.id) else { continue }
+
+            let other = chat.otherPartyName(for: userId)
+            let endsAt = chat.endsAt ?? startsAt.addingTimeInterval(45 * 60)
+
+            do {
+                _ = try await CalendarInviteService.shared.createEvent(
+                    title: "FoundryMeet coffee with \(other)",
+                    notes: chat.talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : chat.talkingPoints,
+                    location: chat.setting,
+                    startsAt: startsAt,
+                    endsAt: endsAt
+                )
+            } catch {
+                // Permission denied — still schedule local reminder.
+            }
+
+            PushNotificationService.shared.scheduleChatReminder(
+                chatId: chat.id,
+                title: "Coffee with \(other) in 15 minutes",
+                startsAt: startsAt
+            )
+            markChatInviteSynced(chat.id)
+        }
+    }
+
+    func enqueuePush(
+        recipientIds: [String],
+        title: String,
+        body: String,
+        chatId: String? = nil,
+        threadId: String? = nil
+    ) async throws {
+        let recipients = recipientIds.filter { !$0.isEmpty }
+        guard !recipients.isEmpty else { return }
+
+        if usesLocalStore {
+            // Debug: surface as a local banner-style notification for the current user when testing alone.
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+            let request = UNNotificationRequest(
+                identifier: "local-push-\(UUID().uuidString)",
+                content: content,
+                trigger: trigger
+            )
+            try? await UNUserNotificationCenter.current().add(request)
+            return
+        }
+
+        var data: [String: Any] = [
+            "recipientIds": recipients,
+            "title": title,
+            "body": body,
+            "status": "pending",
+            "createdAt": Timestamp(date: Date())
+        ]
+        if let chatId { data["chatId"] = chatId }
+        if let threadId { data["threadId"] = threadId }
+        try await db.collection("pushOutbox").document(UUID().uuidString).setData(data, merge: true)
+    }
+
+    private func syncedInvitesKey() -> String {
+        "syncedChatInvites_\(userId ?? "none")"
+    }
+
+    private func hasSyncedChatInvite(_ chatId: String) -> Bool {
+        let synced = UserDefaults.standard.stringArray(forKey: syncedInvitesKey()) ?? []
+        return synced.contains(chatId)
+    }
+
+    private func markChatInviteSynced(_ chatId: String) {
+        var synced = UserDefaults.standard.stringArray(forKey: syncedInvitesKey()) ?? []
+        if !synced.contains(chatId) {
+            synced.append(chatId)
+            UserDefaults.standard.set(synced, forKey: syncedInvitesKey())
+        }
     }
 
     func enqueueMail(
@@ -438,6 +496,7 @@ final class AppRepository: ObservableObject {
         threads = try await threadsTask
         excludedCandidateIds = Set(interactions.map(\.candidateId))
         await rebuildDiscoveryFeed()
+        await syncIncomingChatInvites()
     }
 
     private func rebuildDiscoveryFeed() async {
@@ -690,10 +749,10 @@ final class AppRepository: ObservableObject {
 
     private func saveChat(_ chat: CoffeeChat) async throws {
         if usesLocalStore {
-            var all = (try? readLocal(key: "chats_\(chat.userId)", as: [CoffeeChat].self)) ?? []
+            var all = (try? readLocal(key: "chats_shared", as: [CoffeeChat].self)) ?? []
             all.removeAll { $0.id == chat.id }
             all.insert(chat, at: 0)
-            try writeLocal(all, key: "chats_\(chat.userId)")
+            try writeLocal(all, key: "chats_shared")
             return
         }
         try await db.collection("chats").document(chat.id).setData(chat.firestoreData, merge: true)
@@ -701,11 +760,13 @@ final class AppRepository: ObservableObject {
 
     private func loadChats(userId: String) async throws -> [CoffeeChat] {
         if usesLocalStore {
-            let all = (try? readLocal(key: "chats_\(userId)", as: [CoffeeChat].self)) ?? []
-            return all.sorted { $0.createdAt > $1.createdAt }
+            let all = (try? readLocal(key: "chats_shared", as: [CoffeeChat].self)) ?? []
+            return all
+                .filter { $0.participantIds.contains(userId) || $0.userId == userId || $0.candidateId == userId }
+                .sorted { $0.createdAt > $1.createdAt }
         }
         let snapshot = try await db.collection("chats")
-            .whereField("userId", isEqualTo: userId)
+            .whereField("participantIds", arrayContains: userId)
             .getDocuments()
         return snapshot.documents
             .compactMap { CoffeeChat(id: $0.documentID, firestoreData: $0.data()) }
@@ -1011,6 +1072,8 @@ private extension CoffeeChat {
             "candidateId": candidateId,
             "candidateName": candidateName,
             "candidateRole": candidateRole,
+            "organizerName": organizerName,
+            "participantIds": participantIds,
             "dayLabel": dayLabel,
             "timeLabel": timeLabel,
             "setting": setting,
@@ -1034,12 +1097,16 @@ private extension CoffeeChat {
             let candidateName = data["candidateName"] as? String,
             let candidateRole = data["candidateRole"] as? String
         else { return nil }
+        let participants = data["participantIds"] as? [String]
+            ?? Array(Set([userId, candidateId])).sorted()
         self.init(
             id: id,
             userId: userId,
             candidateId: candidateId,
             candidateName: candidateName,
             candidateRole: candidateRole,
+            organizerName: data["organizerName"] as? String ?? "",
+            participantIds: participants,
             dayLabel: data["dayLabel"] as? String ?? "",
             timeLabel: data["timeLabel"] as? String ?? "",
             setting: data["setting"] as? String ?? "Virtual",

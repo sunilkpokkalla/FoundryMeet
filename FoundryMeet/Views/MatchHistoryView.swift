@@ -51,13 +51,13 @@ struct MatchHistoryView: View {
                                                 .fill(AppColors.secondary.opacity(0.1))
                                                 .frame(width: 56, height: 56)
                                                 .overlay(
-                                                    Text(String(chat.candidateName.prefix(1)))
+                                                    Text(String(chat.otherPartyName(for: repository.profile?.id ?? "").prefix(1)))
                                                         .font(.system(size: 20, weight: .bold))
                                                         .foregroundColor(AppColors.secondary)
                                                 )
 
                                             VStack(alignment: .leading, spacing: 4) {
-                                                Text(chat.candidateName)
+                                                Text(chat.otherPartyName(for: repository.profile?.id ?? ""))
                                                     .font(.system(size: 16, weight: .semibold))
                                                     .foregroundColor(AppColors.onSurface)
                                                 Text("\(chat.dayLabel) · \(chat.timeLabel)")

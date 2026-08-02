@@ -72,7 +72,7 @@ struct SchedulingView: View {
             )) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Coffee chat with \(confirmedChatName ?? "your match") was saved, added to your calendar, and queued for email invite.")
+                Text("Coffee chat with \(confirmedChatName ?? "your match") was saved. Both of you get an in-app reminder; it was also added to your calendar.")
             }
             .task(id: activeMatch?.id) {
                 await reloadSlots()
@@ -267,7 +267,7 @@ struct SchedulingView: View {
                     }
                     .disabled(selectedSlot == nil || isConfirming)
 
-                    Text("Saves to History, adds a calendar event, and emails an .ics invite.")
+                    Text("Saves to History, adds a calendar event, and reminds both people in the app.")
                         .font(.system(size: 10, weight: .regular))
                         .foregroundColor(AppColors.onSurfaceVariant)
                         .multilineTextAlignment(.center)

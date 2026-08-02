@@ -12,7 +12,7 @@ struct MatchNotesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(chat.candidateName)
+                    Text(chat.otherPartyName(for: repository.profile?.id ?? ""))
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(AppColors.onSurface)
                     Text(chat.candidateRole)

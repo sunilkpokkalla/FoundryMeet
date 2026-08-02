@@ -21,6 +21,8 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var candidateId: String
     var candidateName: String
     var candidateRole: String
+    var organizerName: String
+    var participantIds: [String]
     var dayLabel: String
     var timeLabel: String
     var setting: String
@@ -30,7 +32,7 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var startsAt: Date?
     var endsAt: Date?
     var calendarEventId: String?
-    /// none | local | emailed | failed
+    /// none | local | synced | failed
     var inviteStatus: String
     var createdAt: Date
     var updatedAt: Date
@@ -39,6 +41,13 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return formatter.string(from: startsAt ?? createdAt)
+    }
+
+    func otherPartyName(for userId: String) -> String {
+        if userId == self.userId {
+            return candidateName
+        }
+        return organizerName.isEmpty ? "Founder" : organizerName
     }
 }
 
