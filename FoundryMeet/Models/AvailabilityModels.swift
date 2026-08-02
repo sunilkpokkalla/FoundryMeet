@@ -27,56 +27,6 @@ struct AvailabilityWindow: Codable, Identifiable, Equatable {
     }
 }
 
-struct MailOutboxItem: Codable, Identifiable, Equatable {
-    var id: String
-    var to: [String]
-    var subject: String
-    var htmlBody: String
-    var textBody: String
-    var icsContent: String?
-    var template: String
-    var relatedChatId: String?
-    var relatedCredentialId: String?
-    /// pending | sent | failed | skipped
-    var status: String
-    var errorMessage: String?
-    var createdAt: Date
-    var updatedAt: Date
-    var createdBy: String
-
-    init(
-        id: String = UUID().uuidString,
-        to: [String],
-        subject: String,
-        htmlBody: String,
-        textBody: String,
-        icsContent: String? = nil,
-        template: String,
-        relatedChatId: String? = nil,
-        relatedCredentialId: String? = nil,
-        status: String = "pending",
-        errorMessage: String? = nil,
-        createdAt: Date = Date(),
-        updatedAt: Date = Date(),
-        createdBy: String
-    ) {
-        self.id = id
-        self.to = to
-        self.subject = subject
-        self.htmlBody = htmlBody
-        self.textBody = textBody
-        self.icsContent = icsContent
-        self.template = template
-        self.relatedChatId = relatedChatId
-        self.relatedCredentialId = relatedCredentialId
-        self.status = status
-        self.errorMessage = errorMessage
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.createdBy = createdBy
-    }
-}
-
 struct CredentialReview: Codable, Identifiable, Equatable {
     var id: String
     var userId: String

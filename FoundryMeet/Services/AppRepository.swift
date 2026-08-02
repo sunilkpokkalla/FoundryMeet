@@ -129,15 +129,6 @@ final class AppRepository: ObservableObject {
             url: credential.url
         )
         try await saveCredentialReview(review)
-
-        try await enqueueMail(
-            to: [current.email],
-            subject: "Credential submitted for review",
-            htmlBody: "<p>Your credential <strong>\(credential.title)</strong> from \(credential.issuer) was submitted for review.</p>",
-            textBody: "Your credential \(credential.title) from \(credential.issuer) was submitted for review.",
-            template: "credential_submitted",
-            relatedCredentialId: credential.id
-        )
     }
 
     func removeCredential(id: String) async throws {
@@ -208,17 +199,12 @@ final class AppRepository: ObservableObject {
                 if owner.id == userId {
                     profile = owner
                 }
-                try await enqueueMail(
-                    to: [owner.email],
-                    subject: approve ? "Credential verified" : "Credential needs attention",
-                    htmlBody: approve
-                        ? "<p>Your credential <strong>\(owner.credentials[index].title)</strong> was verified.</p>"
-                        : "<p>Your credential <strong>\(owner.credentials[index].title)</strong> was not verified. \(reason ?? "")</p>",
-                    textBody: approve
-                        ? "Your credential \(owner.credentials[index].title) was verified."
-                        : "Your credential \(owner.credentials[index].title) was not verified. \(reason ?? "")",
-                    template: approve ? "credential_verified" : "credential_rejected",
-                    relatedCredentialId: credentialId
+                try await enqueuePush(
+                    recipientIds: [owner.id],
+                    title: approve ? "Credential verified" : "Credential update",
+                    body: approve
+                        ? "\(owner.credentials[index].title) was verified."
+                        : "\(owner.credentials[index].title) was not verified."
                 )
             }
         }
@@ -419,43 +405,6 @@ final class AppRepository: ObservableObject {
             synced.append(chatId)
             UserDefaults.standard.set(synced, forKey: syncedInvitesKey())
         }
-    }
-
-    func enqueueMail(
-        to: [String],
-        subject: String,
-        htmlBody: String,
-        textBody: String,
-        icsContent: String? = nil,
-        template: String,
-        relatedChatId: String? = nil,
-        relatedCredentialId: String? = nil
-    ) async throws {
-        guard let userId else { throw RepositoryError.notSignedIn }
-        let item = MailOutboxItem(
-            to: to.filter { !$0.isEmpty },
-            subject: subject,
-            htmlBody: htmlBody,
-            textBody: textBody,
-            icsContent: icsContent,
-            template: template,
-            relatedChatId: relatedChatId,
-            relatedCredentialId: relatedCredentialId,
-            createdBy: userId
-        )
-        guard !item.to.isEmpty else { return }
-
-        if usesLocalStore {
-            var all = (try? readLocal(key: "mail_outbox", as: [MailOutboxItem].self)) ?? []
-            // Debug: mark as "sent" locally so flows are testable without Functions.
-            var delivered = item
-            delivered.status = "sent"
-            delivered.updatedAt = Date()
-            all.insert(delivered, at: 0)
-            try writeLocal(all, key: "mail_outbox")
-            return
-        }
-        try await db.collection("mailOutbox").document(item.id).setData(item.firestoreData, merge: true)
     }
 
     private func saveCredentialReview(_ review: CredentialReview) async throws {
@@ -1120,27 +1069,6 @@ private extension CoffeeChat {
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
             updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
         )
-    }
-}
-
-extension MailOutboxItem {
-    var firestoreData: [String: Any] {
-        var data: [String: Any] = [
-            "to": to,
-            "subject": subject,
-            "htmlBody": htmlBody,
-            "textBody": textBody,
-            "template": template,
-            "status": status,
-            "createdAt": Timestamp(date: createdAt),
-            "updatedAt": Timestamp(date: updatedAt),
-            "createdBy": createdBy
-        ]
-        if let icsContent { data["icsContent"] = icsContent }
-        if let relatedChatId { data["relatedChatId"] = relatedChatId }
-        if let relatedCredentialId { data["relatedCredentialId"] = relatedCredentialId }
-        if let errorMessage { data["errorMessage"] = errorMessage }
-        return data
     }
 }
 
