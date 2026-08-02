@@ -4,6 +4,7 @@ struct DiscoveryView: View {
     @EnvironmentObject private var repository: AppRepository
     @State private var showProfile = false
     @State private var errorMessage = ""
+    @State private var statusMessage = ""
     @State private var isWorking = false
 
     var body: some View {
@@ -67,6 +68,13 @@ struct DiscoveryView: View {
                                     .padding(.horizontal, 24)
                             }
 
+                            if !statusMessage.isEmpty {
+                                Text(statusMessage)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(AppColors.secondary)
+                                    .padding(.horizontal, 24)
+                            }
+
                             if repository.discoveryFeed.isEmpty {
                                 VStack(spacing: 14) {
                                     Spacer().frame(height: 72)
@@ -100,7 +108,7 @@ struct DiscoveryView: View {
                                             profile: profile,
                                             isDisabled: isWorking,
                                             onDismiss: { handleDismiss(profile) },
-                                            onConnect: { handleConnect(profile) }
+                                            onConnect: { handleRequest(profile) }
                                         )
                                     }
                                 }
@@ -135,12 +143,14 @@ struct DiscoveryView: View {
         }
     }
 
-    private func handleConnect(_ profile: DiscoveryCandidate) {
+    private func handleRequest(_ profile: DiscoveryCandidate) {
         isWorking = true
         errorMessage = ""
+        statusMessage = ""
         Task {
             do {
-                try await repository.connectCandidate(profile)
+                try await repository.requestMatch(with: profile)
+                statusMessage = "Request sent to \(profile.name)."
             } catch {
                 errorMessage = error.localizedDescription
             }

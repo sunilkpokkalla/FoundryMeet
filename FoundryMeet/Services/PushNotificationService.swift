@@ -58,6 +58,8 @@ final class PushNotificationService: NSObject, ObservableObject {
     }
 
     func scheduleChatReminder(chatId: String, title: String, startsAt: Date) {
+        cancelChatReminder(chatId: chatId)
+
         let content = UNMutableNotificationContent()
         content.title = "Coffee chat soon"
         content.body = title
@@ -72,11 +74,21 @@ final class PushNotificationService: NSObject, ObservableObject {
         )
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "chat-reminder-\(chatId)",
+            identifier: Self.reminderIdentifier(chatId: chatId),
             content: content,
             trigger: trigger
         )
         UNUserNotificationCenter.current().add(request)
+    }
+
+    func cancelChatReminder(chatId: String) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: [Self.reminderIdentifier(chatId: chatId)]
+        )
+    }
+
+    private static func reminderIdentifier(chatId: String) -> String {
+        "chat-reminder-\(chatId)"
     }
 }
 

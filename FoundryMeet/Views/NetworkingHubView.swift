@@ -10,7 +10,12 @@ struct NetworkingHubView: View {
 
     private var builders: [DiscoveryCandidate] {
         let live = repository.networkProfiles.map(DiscoveryCandidate.init(profile:))
-        return live.isEmpty ? SeedCatalog.candidates : live
+        // Sample profiles have no account behind them, so they only fill an
+        // empty directory in the local debug store.
+        if live.isEmpty && repository.usesLocalStore {
+            return SeedCatalog.candidates
+        }
+        return live
     }
 
     var body: some View {
@@ -42,6 +47,24 @@ struct NetworkingHubView: View {
                                     .font(.system(size: 13))
                                     .foregroundColor(AppColors.secondary)
                                     .padding(.horizontal, 20)
+                            }
+
+                            if builders.isEmpty {
+                                VStack(spacing: 12) {
+                                    Spacer().frame(height: 60)
+                                    Image(systemName: "globe")
+                                        .font(.system(size: 36))
+                                        .foregroundColor(AppColors.secondary)
+                                    Text("No builders yet")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(AppColors.onSurface)
+                                    Text("As founders join and turn on discovery, they'll show up here.")
+                                        .font(.system(size: 15))
+                                        .foregroundColor(AppColors.onSurfaceVariant)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                }
+                                .frame(maxWidth: .infinity)
                             }
 
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
@@ -102,8 +125,8 @@ struct NetworkingHubView: View {
                         do {
                             switch action {
                             case .connect:
-                                try await repository.connectCandidate(builder)
-                                statusMessage = "Coffee chat requested with \(builder.name)."
+                                try await repository.requestMatch(with: builder)
+                                statusMessage = "Request sent to \(builder.name). You can pick a time once they accept."
                                 selectedBuilder = nil
                             case .message:
                                 let thread = try await repository.openOrCreateThread(with: builder)
@@ -208,8 +231,8 @@ struct BuilderDetailView: View {
                             onAction(.connect)
                         }) {
                             HStack {
-                                Image(systemName: "calendar")
-                                Text("Schedule Chat")
+                                Image(systemName: "cup.and.saucer.fill")
+                                Text("Request Chat")
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             .frame(maxWidth: .infinity)

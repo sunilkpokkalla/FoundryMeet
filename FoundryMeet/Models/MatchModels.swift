@@ -15,7 +15,100 @@ struct ProfileInteraction: Codable, Identifiable, Equatable {
     var createdAt: Date
 }
 
+/// A coffee chat request. One document is shared by both people, so either side
+/// can see it and act on it.
+struct MatchRequest: Codable, Identifiable, Equatable {
+    /// pending → the recipient has not answered yet
+    /// accepted → both agreed to meet, a time can now be proposed
+    /// declined → the recipient passed
+    /// withdrawn → the requester pulled it back before an answer
+    enum Status: String, Codable {
+        case pending
+        case accepted
+        case declined
+        case withdrawn
+    }
+
+    var id: String
+    var requesterId: String
+    var requesterName: String
+    var requesterRole: String
+    var recipientId: String
+    var recipientName: String
+    var recipientRole: String
+    var participantIds: [String]
+    var status: String
+    var note: String
+    var createdAt: Date
+    var updatedAt: Date
+
+    /// Both directions collapse to the same document, so A→B and B→A can never
+    /// produce two competing requests.
+    static func pairId(_ first: String, _ second: String) -> String {
+        [first, second].sorted().joined(separator: "_")
+    }
+
+    init(
+        requesterId: String,
+        requesterName: String,
+        requesterRole: String,
+        recipientId: String,
+        recipientName: String,
+        recipientRole: String,
+        status: Status = .pending,
+        note: String = "",
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = MatchRequest.pairId(requesterId, recipientId)
+        self.requesterId = requesterId
+        self.requesterName = requesterName
+        self.requesterRole = requesterRole
+        self.recipientId = recipientId
+        self.recipientName = recipientName
+        self.recipientRole = recipientRole
+        self.participantIds = [requesterId, recipientId].sorted()
+        self.status = status.rawValue
+        self.note = note
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    var isPending: Bool { status == Status.pending.rawValue }
+    var isAccepted: Bool { status == Status.accepted.rawValue }
+    var isDeclined: Bool { status == Status.declined.rawValue }
+
+    func isIncoming(for userId: String) -> Bool { recipientId == userId }
+
+    func otherPartyId(for userId: String) -> String {
+        requesterId == userId ? recipientId : requesterId
+    }
+
+    func otherPartyName(for userId: String) -> String {
+        let name = requesterId == userId ? recipientName : requesterName
+        return name.isEmpty ? "Founder" : name
+    }
+
+    func otherPartyRole(for userId: String) -> String {
+        requesterId == userId ? recipientRole : requesterRole
+    }
+}
+
 struct CoffeeChat: Codable, Identifiable, Equatable {
+    /// proposed → one side picked a time, the other has not answered
+    /// confirmed → both agreed, calendar entries and reminders are live
+    /// declined → the invitee turned down the proposed time
+    /// cancelled → called off after being confirmed or proposed
+    enum Status: String, Codable {
+        case proposed
+        case confirmed
+        case declined
+        case cancelled
+    }
+
+    /// Written by builds before the two-sided flow existed; treated as confirmed.
+    static let legacyConfirmedStatus = "scheduled"
+
     var id: String
     var userId: String
     var candidateId: String
@@ -29,6 +122,11 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var talkingPoints: String
     var notes: String
     var status: String
+    /// Who put the current time on the table. Changes on every reschedule.
+    var proposedById: String
+    var respondedAt: Date?
+    var cancelledById: String?
+    var cancellationReason: String?
     var startsAt: Date?
     var endsAt: Date?
     var calendarEventId: String?
@@ -43,22 +141,46 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
         return formatter.string(from: startsAt ?? createdAt)
     }
 
+    var isProposed: Bool { status == Status.proposed.rawValue }
+    var isConfirmed: Bool {
+        status == Status.confirmed.rawValue || status == CoffeeChat.legacyConfirmedStatus
+    }
+    var isDeclined: Bool { status == Status.declined.rawValue }
+    var isCancelled: Bool { status == Status.cancelled.rawValue }
+    var isActive: Bool { isProposed || isConfirmed }
+
+    var isPast: Bool {
+        guard let startsAt else { return false }
+        return startsAt < Date()
+    }
+
+    func awaitsResponse(from userId: String) -> Bool {
+        isProposed && proposedById != userId
+    }
+
+    func awaitsOtherParty(for userId: String) -> Bool {
+        isProposed && proposedById == userId
+    }
+
+    func statusLabel(for userId: String) -> String {
+        if isCancelled { return "Cancelled" }
+        if isDeclined { return "Time declined" }
+        if awaitsResponse(from: userId) { return "Needs your answer" }
+        if awaitsOtherParty(for: userId) { return "Awaiting reply" }
+        if isPast { return "Completed" }
+        return "Confirmed"
+    }
+
+    func otherPartyId(for userId: String) -> String {
+        userId == self.userId ? candidateId : self.userId
+    }
+
     func otherPartyName(for userId: String) -> String {
         if userId == self.userId {
             return candidateName
         }
         return organizerName.isEmpty ? "Founder" : organizerName
     }
-}
-
-struct PendingMatch: Codable, Identifiable, Equatable {
-    var id: String
-    var userId: String
-    var candidateId: String
-    var candidateName: String
-    var candidateRole: String
-    var status: String
-    var createdAt: Date
 }
 
 struct DiscoveryCandidate: Identifiable, Equatable {
@@ -72,6 +194,8 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     var stage: String? = nil
     var goal: String? = nil
     var credentials: [VerifiedCredential] = []
+    /// Sample profile with no account behind it, so it cannot receive a request.
+    var isSeed: Bool = false
 
     var initials: String {
         let parts = name.split(separator: " ")
@@ -106,7 +230,8 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         industry: String,
         stage: String? = nil,
         goal: String? = nil,
-        credentials: [VerifiedCredential] = []
+        credentials: [VerifiedCredential] = [],
+        isSeed: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -118,6 +243,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         self.stage = stage
         self.goal = goal
         self.credentials = credentials
+        self.isSeed = isSeed
     }
 
     init(profile: UserProfile) {
@@ -139,7 +265,15 @@ struct DiscoveryCandidate: Identifiable, Equatable {
 }
 
 enum SeedCatalog {
-    static let candidates: [DiscoveryCandidate] = [
+    /// Sample profiles for the local debug store. They have no account behind
+    /// them, so they are never mixed into a live directory.
+    static let candidates: [DiscoveryCandidate] = rawCandidates.map { candidate in
+        var seed = candidate
+        seed.isSeed = true
+        return seed
+    }
+
+    private static let rawCandidates: [DiscoveryCandidate] = [
         DiscoveryCandidate(
             id: "sarah-chen",
             name: "Sarah Chen",

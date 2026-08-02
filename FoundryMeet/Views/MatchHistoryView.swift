@@ -63,6 +63,10 @@ struct MatchHistoryView: View {
                                                 Text("\(chat.dayLabel) · \(chat.timeLabel)")
                                                     .font(.system(size: 14, weight: .regular))
                                                     .foregroundColor(AppColors.onSurfaceVariant)
+                                                ChatStatusBadge(
+                                                    chat: chat,
+                                                    userId: repository.profile?.id ?? ""
+                                                )
                                                 if !chat.notes.isEmpty {
                                                     Text(chat.notes)
                                                         .font(.system(size: 13))

@@ -8,7 +8,7 @@ final class AppRepository: ObservableObject {
     static let shared = AppRepository()
 
     @Published private(set) var profile: UserProfile?
-    @Published private(set) var pendingMatches: [PendingMatch] = []
+    @Published private(set) var matchRequests: [MatchRequest] = []
     @Published private(set) var chats: [CoffeeChat] = []
     @Published private(set) var discoveryFeed: [DiscoveryCandidate] = []
     @Published private(set) var networkProfiles: [UserProfile] = []
@@ -33,6 +33,43 @@ final class AppRepository: ObservableObject {
     private var excludedCandidateIds: Set<String> = []
 
     private init() {}
+
+    // MARK: - Derived match state
+
+    /// Requests waiting on me to accept or decline.
+    var incomingRequests: [MatchRequest] {
+        guard let userId else { return [] }
+        return matchRequests
+            .filter { $0.isPending && $0.isIncoming(for: userId) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// Requests I sent that have not been answered yet.
+    var outgoingRequests: [MatchRequest] {
+        guard let userId else { return [] }
+        return matchRequests
+            .filter { $0.isPending && !$0.isIncoming(for: userId) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// Accepted matches with no live chat, so a time still needs proposing.
+    var schedulableMatches: [MatchRequest] {
+        matchRequests
+            .filter { request in
+                request.isAccepted && !chats.contains { chat in
+                    chat.isActive && Set(chat.participantIds) == Set(request.participantIds)
+                }
+            }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    /// Proposed times I need to confirm or turn down.
+    var chatsAwaitingMyResponse: [CoffeeChat] {
+        guard let userId else { return [] }
+        return chats
+            .filter { $0.awaitsResponse(from: userId) }
+            .sorted { ($0.startsAt ?? $0.createdAt) < ($1.startsAt ?? $1.createdAt) }
+    }
 
     func configure(userId: String, email: String, displayName: String, useLocalStore: Bool) async {
         self.userId = userId
@@ -71,7 +108,7 @@ final class AppRepository: ObservableObject {
     func clearSession() {
         userId = nil
         profile = nil
-        pendingMatches = []
+        matchRequests = []
         chats = []
         discoveryFeed = []
         networkProfiles = []
@@ -246,8 +283,12 @@ final class AppRepository: ObservableObject {
         )
     }
 
-    func scheduleChat(
-        for match: PendingMatch,
+    // MARK: - Coffee chat scheduling
+
+    /// Puts a time on the table for an accepted match. Nothing lands on either
+    /// calendar until the other person confirms.
+    func proposeChat(
+        for match: MatchRequest,
         startsAt: Date,
         endsAt: Date,
         dayLabel: String,
@@ -256,99 +297,180 @@ final class AppRepository: ObservableObject {
         talkingPoints: String
     ) async throws -> CoffeeChat {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
+        guard match.isAccepted else { throw RepositoryError.matchNotAccepted }
 
-        var inviteStatus = "none"
-        var calendarEventId: String?
-
-        do {
-            calendarEventId = try await CalendarInviteService.shared.createEvent(
-                title: "FoundryMeet coffee with \(match.candidateName)",
-                notes: talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : talkingPoints,
-                location: setting,
-                startsAt: startsAt,
-                endsAt: endsAt
-            )
-            inviteStatus = "local"
-        } catch {
-            inviteStatus = "failed"
-        }
-
+        let otherId = match.otherPartyId(for: userId)
         let chat = CoffeeChat(
             id: UUID().uuidString,
             userId: userId,
-            candidateId: match.candidateId,
-            candidateName: match.candidateName,
-            candidateRole: match.candidateRole,
+            candidateId: otherId,
+            candidateName: match.otherPartyName(for: userId),
+            candidateRole: match.otherPartyRole(for: userId),
             organizerName: me.displayName.isEmpty ? "Founder" : me.displayName,
-            participantIds: [userId, match.candidateId].sorted(),
+            participantIds: match.participantIds,
             dayLabel: dayLabel,
             timeLabel: timeLabel,
             setting: setting,
             talkingPoints: talkingPoints,
             notes: "",
-            status: "scheduled",
+            status: CoffeeChat.Status.proposed.rawValue,
+            proposedById: userId,
+            respondedAt: nil,
+            cancelledById: nil,
+            cancellationReason: nil,
             startsAt: startsAt,
             endsAt: endsAt,
-            calendarEventId: calendarEventId,
-            inviteStatus: inviteStatus,
+            calendarEventId: nil,
+            inviteStatus: "none",
             createdAt: Date(),
             updatedAt: Date()
         )
         try await saveChat(chat)
-
-        var updated = match
-        updated.status = "scheduled"
-        try await savePendingMatch(updated)
-
-        chats.insert(chat, at: 0)
-        pendingMatches.removeAll { $0.id == match.id }
-
-        // In-app reminders for both people — no email API required.
-        PushNotificationService.shared.scheduleChatReminder(
-            chatId: chat.id,
-            title: "Coffee with \(match.candidateName) in 15 minutes",
-            startsAt: startsAt
-        )
-        markChatInviteSynced(chat.id)
+        upsertChat(chat)
 
         try await enqueuePush(
-            recipientIds: [match.candidateId],
-            title: "Coffee chat confirmed",
-            body: "\(chat.organizerName) scheduled \(dayLabel) · \(timeLabel)",
+            recipientIds: [otherId],
+            title: "New time proposed",
+            body: "\(chat.organizerName) suggested \(dayLabel) · \(timeLabel)",
             chatId: chat.id
         )
 
         return chat
     }
 
-    /// When either person opens the app, add calendar + local reminder for shared chats.
-    func syncIncomingChatInvites() async {
+    /// Confirms or turns down a time the other person proposed.
+    func respondToChat(_ chat: CoffeeChat, accept: Bool) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard chat.awaitsResponse(from: userId) else { throw RepositoryError.notAllowed }
+
+        var updated = chat
+        updated.status = accept
+            ? CoffeeChat.Status.confirmed.rawValue
+            : CoffeeChat.Status.declined.rawValue
+        updated.respondedAt = Date()
+        updated.updatedAt = Date()
+        try await saveChat(updated)
+        upsertChat(updated)
+        await syncCalendarState()
+
+        let responderName = profile?.displayName.isEmpty == false
+            ? (profile?.displayName ?? "Your match")
+            : "Your match"
+        try await enqueuePush(
+            recipientIds: [chat.otherPartyId(for: userId)],
+            title: accept ? "Coffee chat confirmed" : "Time declined",
+            body: accept
+                ? "\(responderName) confirmed \(chat.dayLabel) · \(chat.timeLabel)"
+                : "\(responderName) can't make \(chat.dayLabel) · \(chat.timeLabel). Try another time.",
+            chatId: chat.id
+        )
+    }
+
+    /// Moves an existing chat to a new time. The other person has to confirm again.
+    func rescheduleChat(
+        _ chat: CoffeeChat,
+        startsAt: Date,
+        endsAt: Date,
+        dayLabel: String,
+        timeLabel: String
+    ) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard chat.participantIds.contains(userId) else { throw RepositoryError.notAllowed }
+        guard chat.isActive else { throw RepositoryError.chatNotActive }
+
+        var updated = chat
+        updated.startsAt = startsAt
+        updated.endsAt = endsAt
+        updated.dayLabel = dayLabel
+        updated.timeLabel = timeLabel
+        updated.status = CoffeeChat.Status.proposed.rawValue
+        updated.proposedById = userId
+        updated.respondedAt = nil
+        updated.updatedAt = Date()
+        try await saveChat(updated)
+        upsertChat(updated)
+        await syncCalendarState()
+
+        let myName = profile?.displayName.isEmpty == false
+            ? (profile?.displayName ?? "Your match")
+            : "Your match"
+        try await enqueuePush(
+            recipientIds: [chat.otherPartyId(for: userId)],
+            title: "New time proposed",
+            body: "\(myName) moved your coffee chat to \(dayLabel) · \(timeLabel)",
+            chatId: chat.id
+        )
+    }
+
+    /// Calls off a chat for both people and clears the local calendar entry.
+    func cancelChat(_ chat: CoffeeChat, reason: String?) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard chat.participantIds.contains(userId) else { throw RepositoryError.notAllowed }
+        guard chat.isActive else { throw RepositoryError.chatNotActive }
+
+        let trimmedReason = reason?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var updated = chat
+        updated.status = CoffeeChat.Status.cancelled.rawValue
+        updated.cancelledById = userId
+        updated.cancellationReason = trimmedReason?.isEmpty == false ? trimmedReason : nil
+        updated.updatedAt = Date()
+        try await saveChat(updated)
+        upsertChat(updated)
+        await syncCalendarState()
+
+        let myName = profile?.displayName.isEmpty == false
+            ? (profile?.displayName ?? "Your match")
+            : "Your match"
+        let detail = updated.cancellationReason.map { " — \($0)" } ?? ""
+        try await enqueuePush(
+            recipientIds: [chat.otherPartyId(for: userId)],
+            title: "Coffee chat cancelled",
+            body: "\(myName) cancelled \(chat.dayLabel) · \(chat.timeLabel)\(detail)",
+            chatId: chat.id
+        )
+    }
+
+    /// Brings this device's calendar and reminders in line with the shared chat
+    /// state, in both directions: confirmed chats get an entry, and anything the
+    /// other person cancelled, declined, or moved has its entry taken back out.
+    func syncCalendarState() async {
         guard let userId else { return }
-        for chat in chats where chat.status == "scheduled" {
-            guard let startsAt = chat.startsAt, startsAt > Date() else { continue }
-            guard !hasSyncedChatInvite(chat.id) else { continue }
 
-            let other = chat.otherPartyName(for: userId)
-            let endsAt = chat.endsAt ?? startsAt.addingTimeInterval(45 * 60)
+        for chat in chats {
+            let existingEventId = calendarEventId(for: chat.id)
+            let shouldBeOnCalendar = chat.isConfirmed
+                && (chat.startsAt.map { $0 > Date() } ?? false)
 
-            do {
-                _ = try await CalendarInviteService.shared.createEvent(
+            if shouldBeOnCalendar {
+                guard existingEventId == nil, let startsAt = chat.startsAt else { continue }
+                let other = chat.otherPartyName(for: userId)
+                let endsAt = chat.endsAt ?? startsAt.addingTimeInterval(45 * 60)
+
+                if let eventId = try? await CalendarInviteService.shared.createEvent(
                     title: "FoundryMeet coffee with \(other)",
                     notes: chat.talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : chat.talkingPoints,
                     location: chat.setting,
                     startsAt: startsAt,
                     endsAt: endsAt
-                )
-            } catch {
-                // Permission denied — still schedule local reminder.
-            }
+                ) {
+                    setCalendarEventId(eventId, for: chat.id)
+                } else {
+                    // Calendar access denied — the in-app reminder still stands.
+                    setCalendarEventId("", for: chat.id)
+                }
 
-            PushNotificationService.shared.scheduleChatReminder(
-                chatId: chat.id,
-                title: "Coffee with \(other) in 15 minutes",
-                startsAt: startsAt
-            )
-            markChatInviteSynced(chat.id)
+                PushNotificationService.shared.scheduleChatReminder(
+                    chatId: chat.id,
+                    title: "Coffee with \(other) in 15 minutes",
+                    startsAt: startsAt
+                )
+            } else if let existingEventId {
+                if !existingEventId.isEmpty {
+                    await CalendarInviteService.shared.removeEvent(identifier: existingEventId)
+                }
+                PushNotificationService.shared.cancelChatReminder(chatId: chat.id)
+                setCalendarEventId(nil, for: chat.id)
+            }
         }
     }
 
@@ -390,20 +512,41 @@ final class AppRepository: ObservableObject {
         try await db.collection("pushOutbox").document(UUID().uuidString).setData(data, merge: true)
     }
 
-    private func syncedInvitesKey() -> String {
-        "syncedChatInvites_\(userId ?? "none")"
+    /// Each device creates its own calendar event, so the identifier is kept
+    /// locally rather than in the shared chat document.
+    private func calendarEventsKey() -> String {
+        "calendarEventIds_\(userId ?? "none")"
     }
 
-    private func hasSyncedChatInvite(_ chatId: String) -> Bool {
-        let synced = UserDefaults.standard.stringArray(forKey: syncedInvitesKey()) ?? []
-        return synced.contains(chatId)
+    private func calendarEventId(for chatId: String) -> String? {
+        let map = UserDefaults.standard.dictionary(forKey: calendarEventsKey()) as? [String: String]
+        return map?[chatId]
     }
 
-    private func markChatInviteSynced(_ chatId: String) {
-        var synced = UserDefaults.standard.stringArray(forKey: syncedInvitesKey()) ?? []
-        if !synced.contains(chatId) {
-            synced.append(chatId)
-            UserDefaults.standard.set(synced, forKey: syncedInvitesKey())
+    private func setCalendarEventId(_ eventId: String?, for chatId: String) {
+        var map = (UserDefaults.standard.dictionary(forKey: calendarEventsKey()) as? [String: String]) ?? [:]
+        if let eventId {
+            map[chatId] = eventId
+        } else {
+            map.removeValue(forKey: chatId)
+        }
+        UserDefaults.standard.set(map, forKey: calendarEventsKey())
+    }
+
+    private func upsertChat(_ chat: CoffeeChat) {
+        if let index = chats.firstIndex(where: { $0.id == chat.id }) {
+            chats[index] = chat
+        } else {
+            chats.insert(chat, at: 0)
+        }
+        chats.sort { $0.createdAt > $1.createdAt }
+    }
+
+    private func upsertMatchRequest(_ request: MatchRequest) {
+        if let index = matchRequests.firstIndex(where: { $0.id == request.id }) {
+            matchRequests[index] = request
+        } else {
+            matchRequests.insert(request, at: 0)
         }
     }
 
@@ -433,19 +576,20 @@ final class AppRepository: ObservableObject {
     func refreshAll() async throws {
         guard let userId else { return }
         async let interactionsTask = loadInteractions(userId: userId)
-        async let matchesTask = loadPendingMatches(userId: userId)
+        async let matchesTask = loadMatchRequests(userId: userId)
         async let chatsTask = loadChats(userId: userId)
         async let networkTask = loadNetworkProfiles(excluding: userId)
         async let threadsTask = loadThreads(userId: userId)
 
         let interactions = try await interactionsTask
-        pendingMatches = try await matchesTask
+        matchRequests = try await matchesTask
         chats = try await chatsTask
         networkProfiles = try await networkTask
         threads = try await threadsTask
         excludedCandidateIds = Set(interactions.map(\.candidateId))
+            .union(matchRequests.filter { !$0.isDeclined }.map { $0.otherPartyId(for: userId) })
         await rebuildDiscoveryFeed()
-        await syncIncomingChatInvites()
+        await syncCalendarState()
     }
 
     private func rebuildDiscoveryFeed() async {
@@ -453,7 +597,9 @@ final class AppRepository: ObservableObject {
         var candidates = networkProfiles
             .filter { $0.isDiscoverable && $0.onboardingCompleted && $0.id != userId }
             .map(DiscoveryCandidate.init(profile:))
-        if candidates.isEmpty {
+        // Sample profiles have no account behind them, so they only stand in for
+        // an empty directory in the local debug store.
+        if candidates.isEmpty && usesLocalStore {
             candidates = SeedCatalog.candidates.filter { $0.id != userId }
         }
         candidates = candidates.filter { !excludedCandidateIds.contains($0.id) }
@@ -488,25 +634,84 @@ final class AppRepository: ObservableObject {
         discoveryFeed.removeAll { $0.id == candidate.id }
     }
 
-    func connectCandidate(_ candidate: DiscoveryCandidate) async throws {
-        guard let userId else { throw RepositoryError.notSignedIn }
+    // MARK: - Match requests
+
+    /// Sends a coffee chat request. If that person already asked me, this counts
+    /// as accepting theirs instead of opening a second request.
+    func requestMatch(with candidate: DiscoveryCandidate, note: String = "") async throws {
+        guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
+        guard candidate.id != userId else { throw RepositoryError.invalidInput }
+        guard !candidate.isSeed || usesLocalStore else { throw RepositoryError.sampleProfile }
+
+        if let existing = matchRequests.first(where: { $0.id == MatchRequest.pairId(userId, candidate.id) }) {
+            if existing.isPending && existing.isIncoming(for: userId) {
+                try await respondToRequest(existing, accept: true)
+                return
+            }
+            if existing.isPending || existing.isAccepted {
+                throw RepositoryError.duplicateRequest
+            }
+        }
+
+        let request = MatchRequest(
+            requesterId: userId,
+            requesterName: me.displayName.isEmpty ? "Founder" : me.displayName,
+            requesterRole: me.role ?? "Founder",
+            recipientId: candidate.id,
+            recipientName: candidate.name,
+            recipientRole: candidate.role,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        try await saveMatchRequest(request)
+        upsertMatchRequest(request)
+
         try await recordInteraction(candidate, action: .connected)
         excludedCandidateIds.insert(candidate.id)
-
-        let match = PendingMatch(
-            id: "\(userId)_\(candidate.id)",
-            userId: userId,
-            candidateId: candidate.id,
-            candidateName: candidate.name,
-            candidateRole: candidate.role,
-            status: "accepted",
-            createdAt: Date()
-        )
-        try await savePendingMatch(match)
-        if !pendingMatches.contains(where: { $0.id == match.id }) {
-            pendingMatches.insert(match, at: 0)
-        }
         discoveryFeed.removeAll { $0.id == candidate.id }
+
+        try await enqueuePush(
+            recipientIds: [candidate.id],
+            title: "New coffee chat request",
+            body: "\(request.requesterName) would like to grab coffee."
+        )
+    }
+
+    /// Accepts or declines a request addressed to me.
+    func respondToRequest(_ request: MatchRequest, accept: Bool) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard request.isIncoming(for: userId) else { throw RepositoryError.notAllowed }
+        guard request.isPending else { throw RepositoryError.requestAlreadyAnswered }
+
+        var updated = request
+        updated.status = accept
+            ? MatchRequest.Status.accepted.rawValue
+            : MatchRequest.Status.declined.rawValue
+        updated.updatedAt = Date()
+        try await saveMatchRequest(updated)
+        upsertMatchRequest(updated)
+        excludedCandidateIds.insert(request.requesterId)
+        discoveryFeed.removeAll { $0.id == request.requesterId }
+
+        // A decline stays silent; the requester sees it in their own list.
+        guard accept else { return }
+        try await enqueuePush(
+            recipientIds: [request.requesterId],
+            title: "Request accepted",
+            body: "\(updated.recipientName) accepted your coffee chat request. Pick a time."
+        )
+    }
+
+    /// Pulls back a request I sent before it was answered.
+    func withdrawRequest(_ request: MatchRequest) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard request.requesterId == userId else { throw RepositoryError.notAllowed }
+        guard request.isPending else { throw RepositoryError.requestAlreadyAnswered }
+
+        var updated = request
+        updated.status = MatchRequest.Status.withdrawn.rawValue
+        updated.updatedAt = Date()
+        try await saveMatchRequest(updated)
+        upsertMatchRequest(updated)
     }
 
     func updateChatNotes(chatId: String, notes: String) async throws {
@@ -669,31 +874,30 @@ final class AppRepository: ObservableObject {
         return snapshot.documents.compactMap { ProfileInteraction(id: $0.documentID, firestoreData: $0.data()) }
     }
 
-    private func savePendingMatch(_ match: PendingMatch) async throws {
+    private func saveMatchRequest(_ request: MatchRequest) async throws {
         if usesLocalStore {
-            var all = (try? readLocal(key: "matches_\(match.userId)", as: [PendingMatch].self)) ?? []
-            all.removeAll { $0.id == match.id }
-            if match.status != "scheduled" {
-                all.append(match)
-            }
-            try writeLocal(all, key: "matches_\(match.userId)")
+            var all = (try? readLocal(key: "match_requests_shared", as: [MatchRequest].self)) ?? []
+            all.removeAll { $0.id == request.id }
+            all.insert(request, at: 0)
+            try writeLocal(all, key: "match_requests_shared")
             return
         }
-        try await db.collection("matches").document(match.id).setData(match.firestoreData, merge: true)
+        try await db.collection("matches").document(request.id).setData(request.firestoreData, merge: true)
     }
 
-    private func loadPendingMatches(userId: String) async throws -> [PendingMatch] {
+    private func loadMatchRequests(userId: String) async throws -> [MatchRequest] {
         if usesLocalStore {
-            let all = (try? readLocal(key: "matches_\(userId)", as: [PendingMatch].self)) ?? []
-            return all.filter { $0.status == "accepted" }.sorted { $0.createdAt > $1.createdAt }
+            let all = (try? readLocal(key: "match_requests_shared", as: [MatchRequest].self)) ?? []
+            return all
+                .filter { $0.participantIds.contains(userId) }
+                .sorted { $0.updatedAt > $1.updatedAt }
         }
         let snapshot = try await db.collection("matches")
-            .whereField("userId", isEqualTo: userId)
+            .whereField("participantIds", arrayContains: userId)
             .getDocuments()
         return snapshot.documents
-            .compactMap { PendingMatch(id: $0.documentID, firestoreData: $0.data()) }
-            .filter { $0.status == "accepted" }
-            .sorted { $0.createdAt > $1.createdAt }
+            .compactMap { MatchRequest(id: $0.documentID, firestoreData: $0.data()) }
+            .sorted { $0.updatedAt > $1.updatedAt }
     }
 
     private func saveChat(_ chat: CoffeeChat) async throws {
@@ -824,12 +1028,24 @@ enum RepositoryError: LocalizedError {
     case notSignedIn
     case notFound
     case invalidInput
+    case notAllowed
+    case duplicateRequest
+    case requestAlreadyAnswered
+    case matchNotAccepted
+    case chatNotActive
+    case sampleProfile
 
     var errorDescription: String? {
         switch self {
         case .notSignedIn: return "You need to be signed in."
         case .notFound: return "Item not found."
         case .invalidInput: return "Please enter a valid value."
+        case .notAllowed: return "You can't do that on this request."
+        case .duplicateRequest: return "You already have a request open with this person."
+        case .requestAlreadyAnswered: return "This request was already answered."
+        case .matchNotAccepted: return "Wait for the request to be accepted before picking a time."
+        case .chatNotActive: return "This coffee chat is no longer active."
+        case .sampleProfile: return "This is a sample profile and can't receive requests."
         }
     }
 }
@@ -982,35 +1198,42 @@ private extension ProfileInteraction {
     }
 }
 
-private extension PendingMatch {
+extension MatchRequest {
     var firestoreData: [String: Any] {
         [
-            "userId": userId,
-            "candidateId": candidateId,
-            "candidateName": candidateName,
-            "candidateRole": candidateRole,
+            "requesterId": requesterId,
+            "requesterName": requesterName,
+            "requesterRole": requesterRole,
+            "recipientId": recipientId,
+            "recipientName": recipientName,
+            "recipientRole": recipientRole,
+            "participantIds": participantIds,
             "status": status,
-            "createdAt": Timestamp(date: createdAt)
+            "note": note,
+            "createdAt": Timestamp(date: createdAt),
+            "updatedAt": Timestamp(date: updatedAt)
         ]
     }
 
     init?(id: String, firestoreData data: [String: Any]) {
         guard
-            let userId = data["userId"] as? String,
-            let candidateId = data["candidateId"] as? String,
-            let candidateName = data["candidateName"] as? String,
-            let candidateRole = data["candidateRole"] as? String,
+            let requesterId = data["requesterId"] as? String,
+            let recipientId = data["recipientId"] as? String,
             let status = data["status"] as? String
         else { return nil }
         self.init(
-            id: id,
-            userId: userId,
-            candidateId: candidateId,
-            candidateName: candidateName,
-            candidateRole: candidateRole,
-            status: status,
-            createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+            requesterId: requesterId,
+            requesterName: data["requesterName"] as? String ?? "",
+            requesterRole: data["requesterRole"] as? String ?? "Founder",
+            recipientId: recipientId,
+            recipientName: data["recipientName"] as? String ?? "",
+            recipientRole: data["recipientRole"] as? String ?? "Founder",
+            status: Status(rawValue: status) ?? .pending,
+            note: data["note"] as? String ?? "",
+            createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+            updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
         )
+        self.id = id
     }
 }
 
@@ -1029,6 +1252,7 @@ private extension CoffeeChat {
             "talkingPoints": talkingPoints,
             "notes": notes,
             "status": status,
+            "proposedById": proposedById,
             "inviteStatus": inviteStatus,
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": Timestamp(date: updatedAt)
@@ -1036,6 +1260,9 @@ private extension CoffeeChat {
         if let startsAt { data["startsAt"] = Timestamp(date: startsAt) }
         if let endsAt { data["endsAt"] = Timestamp(date: endsAt) }
         if let calendarEventId { data["calendarEventId"] = calendarEventId }
+        if let respondedAt { data["respondedAt"] = Timestamp(date: respondedAt) }
+        if let cancelledById { data["cancelledById"] = cancelledById }
+        if let cancellationReason { data["cancellationReason"] = cancellationReason }
         return data
     }
 
@@ -1061,7 +1288,11 @@ private extension CoffeeChat {
             setting: data["setting"] as? String ?? "Virtual",
             talkingPoints: data["talkingPoints"] as? String ?? "",
             notes: data["notes"] as? String ?? "",
-            status: data["status"] as? String ?? "scheduled",
+            status: data["status"] as? String ?? CoffeeChat.legacyConfirmedStatus,
+            proposedById: data["proposedById"] as? String ?? userId,
+            respondedAt: (data["respondedAt"] as? Timestamp)?.dateValue(),
+            cancelledById: data["cancelledById"] as? String,
+            cancellationReason: data["cancellationReason"] as? String,
             startsAt: (data["startsAt"] as? Timestamp)?.dateValue(),
             endsAt: (data["endsAt"] as? Timestamp)?.dateValue(),
             calendarEventId: data["calendarEventId"] as? String,

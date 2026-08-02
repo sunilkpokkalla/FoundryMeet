@@ -49,6 +49,14 @@ final class CalendarInviteService {
         return eventId
     }
 
+    /// Removes a previously created event. Missing events are treated as removed
+    /// so a cancellation never fails because the user already deleted it.
+    func removeEvent(identifier: String) async {
+        let granted = await requestAccess()
+        guard granted, let event = store.event(withIdentifier: identifier) else { return }
+        try? store.remove(event, span: .thisEvent, commit: true)
+    }
+
     func busyIntervals(from start: Date, to end: Date) async -> [(start: Date, end: Date)] {
         let granted = await requestAccess()
         guard granted else { return [] }
