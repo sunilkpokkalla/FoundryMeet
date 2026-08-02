@@ -1,12 +1,16 @@
 import * as admin from "firebase-admin";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { defineSecret } from "firebase-functions/params";
+import { defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 
 admin.initializeApp();
 
-const resendApiKey = defineSecret("RESEND_API_KEY");
-const mailFrom = defineSecret("MAIL_FROM");
+// Optional — set with: firebase functions:config:set is deprecated;
+// use params / console env, or `firebase functions:secrets:set` after Blaze upgrade.
+const resendApiKey = defineString("RESEND_API_KEY", { default: "" });
+const mailFrom = defineString("MAIL_FROM", {
+  default: "FoundryMeet <onboarding@resend.dev>",
+});
 
 type MailDoc = {
   to?: string[];
@@ -28,7 +32,6 @@ type PushDoc = {
 export const onMailOutboxCreated = onDocumentCreated(
   {
     document: "mailOutbox/{mailId}",
-    secrets: [resendApiKey, mailFrom],
   },
   async (event) => {
     const snap = event.data;

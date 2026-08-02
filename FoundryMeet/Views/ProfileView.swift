@@ -94,7 +94,7 @@ struct ProfileView: View {
             } message: {
                 Text("Links are marked pending until a reviewer verifies them.")
             }
-            .onChange(of: photoItem) { _, item in
+            .onChange(of: photoItem) { item in
                 guard let item else { return }
                 Task { await uploadPhoto(item) }
             }
