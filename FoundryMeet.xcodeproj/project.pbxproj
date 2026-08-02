@@ -19,6 +19,7 @@
 		2BBB68BCFA19E20F69F33A53 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DBFEA2849FEF2171849697 /* ProfileView.swift */; };
 		332B727CD91178F7F05F384B /* AvailabilityEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168055766154EE0EC298438F /* AvailabilityEngine.swift */; };
 		3823C1C7A031E78E1007D0FA /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = B2A6663042E0FDEE2F78775F /* FirebaseAuth */; };
+		40B94A5ABF0E62E13927BD1C /* MatchFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE187A071612C4F1EE0959D /* MatchFlowTests.swift */; };
 		486362828FDEB4A8AE2E29F5 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 0A2B3770CBBC5046E511A275 /* FirebaseFirestore */; };
 		4D92F7D9BD21D60A9D47FFC3 /* AvailabilityModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6BE904340E1B8B150749CB9 /* AvailabilityModels.swift */; };
 		52A472616988CFFDC5487F10 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBBFAEB13C765A5C27FECF8F /* ContentView.swift */; };
@@ -41,6 +42,7 @@
 		E0F91EC570A2B8539AFC72DE /* NetworkingHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */; };
 		E23AC0E0E0E1681F6BD1AAEE /* PhotoStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AD8BB63D42C2DE487CC423 /* PhotoStorageService.swift */; };
 		F4C8DA8610BD2F138B69696E /* AppChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78EA52054894AED4DB6749E /* AppChrome.swift */; };
+		F5A422C4628258A76C3F0E42 /* SlotPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033CE942D48E98BD6D91D55B /* SlotPicker.swift */; };
 		FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19898197BAA10B276B2FB8DE /* DiscoveryView.swift */; };
 /* End PBXBuildFile section */
 
@@ -55,6 +57,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		033CE942D48E98BD6D91D55B /* SlotPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlotPicker.swift; sourceTree = "<group>"; };
 		0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkingHubView.swift; sourceTree = "<group>"; };
 		0E9ED656935F2CFA85B548FB /* AvailabilityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvailabilityEditorView.swift; sourceTree = "<group>"; };
 		1388872644E7D53B80FDA8BF /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
@@ -73,6 +76,7 @@
 		8C88E22C8C7EC98421373CA8 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryMeetApp.swift; sourceTree = "<group>"; };
 		A9D80E83BD0C55AE441FCB08 /* FoundryMeet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoundryMeet.entitlements; sourceTree = "<group>"; };
+		ACE187A071612C4F1EE0959D /* MatchFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchFlowTests.swift; sourceTree = "<group>"; };
 		BB4A1D43C61E6AB28D080351 /* AvailabilityEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvailabilityEngineTests.swift; sourceTree = "<group>"; };
 		BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -122,6 +126,7 @@
 				BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */,
 				65DBFEA2849FEF2171849697 /* ProfileView.swift */,
 				EA1431BB946EC402CF32FFB0 /* SchedulingView.swift */,
+				033CE942D48E98BD6D91D55B /* SlotPicker.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -130,6 +135,7 @@
 			isa = PBXGroup;
 			children = (
 				BB4A1D43C61E6AB28D080351 /* AvailabilityEngineTests.swift */,
+				ACE187A071612C4F1EE0959D /* MatchFlowTests.swift */,
 			);
 			path = FoundryMeetTests;
 			sourceTree = "<group>";
@@ -319,6 +325,7 @@
 				2BBB68BCFA19E20F69F33A53 /* ProfileView.swift in Sources */,
 				B5014D2F4E72B4E3FFF6CEAE /* PushNotificationService.swift in Sources */,
 				7CAFDA8371DECE37AD4055E9 /* SchedulingView.swift in Sources */,
+				F5A422C4628258A76C3F0E42 /* SlotPicker.swift in Sources */,
 				0A90125FFBB1ABF559782D57 /* UserProfile.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -328,6 +335,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7B5C6D3D81A12A2FD8631FCD /* AvailabilityEngineTests.swift in Sources */,
+				40B94A5ABF0E62E13927BD1C /* MatchFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
