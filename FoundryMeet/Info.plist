@@ -27,6 +27,16 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>FoundryMeet needs photo access so you can set a profile picture.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

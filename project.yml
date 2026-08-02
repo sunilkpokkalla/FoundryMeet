@@ -22,6 +22,10 @@ targets:
         product: FirebaseCore
       - package: Firebase
         product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseMessaging
+      - package: Firebase
+        product: FirebaseStorage
       - package: GoogleSignIn
         product: GoogleSignIn
       - package: GoogleSignIn
@@ -31,16 +35,22 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.ambright.foundrymeet
         DEVELOPMENT_TEAM: 2K4C865Z8F
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: FoundryMeet/FoundryMeet.entitlements
         SWIFT_ENABLE_EXPLICIT_MODULES: NO
         CLANG_ENABLE_EXPLICIT_MODULES: NO
-        # Ensure orientations land in the archived Info.plist (App Store error 90474).
+        ENABLE_TESTABILITY: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_NSCalendarsUsageDescription: "FoundryMeet adds coffee chats to your calendar and checks busy times for open slots."
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "FoundryMeet adds coffee chats to your calendar and checks busy times for open slots."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "FoundryMeet needs photo access so you can set a profile picture."
         TARGETED_DEVICE_FAMILY: "1,2"
     info:
       path: FoundryMeet/Info.plist
       properties:
         UILaunchScreen: {}
+        UIBackgroundModes:
+          - remote-notification
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -51,9 +61,25 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        NSCalendarsUsageDescription: FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.
+        NSCalendarsFullAccessUsageDescription: FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.
+        NSPhotoLibraryUsageDescription: FoundryMeet needs photo access so you can set a profile picture.
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - com.googleusercontent.apps.831784077430-neuo5eqbs106obig2v87qrcmlvqea2s0
+  FoundryMeetTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [FoundryMeetTests]
+    dependencies:
+      - target: FoundryMeet
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ambright.foundrymeet.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_ENABLE_EXPLICIT_MODULES: NO
+        CLANG_ENABLE_EXPLICIT_MODULES: NO
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk.git
@@ -61,3 +87,12 @@ packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS.git
     from: 8.0.0
+schemes:
+  FoundryMeet:
+    build:
+      targets:
+        FoundryMeet: all
+        FoundryMeetTests: [test]
+    test:
+      targets:
+        - FoundryMeetTests

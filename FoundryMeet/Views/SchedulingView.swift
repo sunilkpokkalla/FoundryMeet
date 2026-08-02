@@ -2,24 +2,16 @@ import SwiftUI
 
 struct SchedulingView: View {
     @EnvironmentObject private var repository: AppRepository
-    @State private var selectedDay = 0
-    @State private var selectedTime: Int? = nil
+    @State private var dayGroups: [(dayLabel: String, slots: [AvailableSlot])] = []
+    @State private var selectedDayIndex = 0
+    @State private var selectedSlot: AvailableSlot?
     @State private var selectedSetting: SettingType = .virtual
     @State private var talkingPoints: String = ""
     @State private var isConfirming = false
+    @State private var isLoadingSlots = false
     @State private var statusMessage = ""
     @State private var showProfile = false
     @State private var confirmedChatName: String?
-
-    let days = [
-        ("Tue", "14"), ("Wed", "15"), ("Thu", "16"), ("Fri", "17")
-    ]
-
-    let slots = [
-        ("Morning", "9:00 AM"),
-        ("Lunch", "12:30 PM"),
-        ("Afternoon", "3:45 PM")
-    ]
 
     enum SettingType: String {
         case inPerson = "In-Person"
@@ -29,6 +21,11 @@ struct SchedulingView: View {
 
     private var activeMatch: PendingMatch? {
         repository.pendingMatches.first
+    }
+
+    private var slotsForSelectedDay: [AvailableSlot] {
+        guard dayGroups.indices.contains(selectedDayIndex) else { return [] }
+        return dayGroups[selectedDayIndex].slots
     }
 
     var body: some View {
@@ -75,10 +72,10 @@ struct SchedulingView: View {
             )) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Coffee chat with \(confirmedChatName ?? "your match") is saved in History.")
+                Text("Coffee chat with \(confirmedChatName ?? "your match") was saved, added to your calendar, and queued for email invite.")
             }
-            .task {
-                try? await repository.refreshAll()
+            .task(id: activeMatch?.id) {
+                await reloadSlots()
             }
         }
     }
@@ -139,52 +136,68 @@ struct SchedulingView: View {
                             }
                         }
 
-                        Text("You both have overlapping gaps this week. Pick a time that feels effortless.")
+                        Text("Slots come from your weekly availability, minus busy events on your calendar.")
                             .font(.system(size: 15, weight: .regular))
                             .foregroundColor(AppColors.onSurfaceVariant)
                             .lineSpacing(4)
                     }
 
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(0..<days.count, id: \.self) { index in
-                                Button(action: { selectedDay = index }) {
-                                    VStack(spacing: 4) {
-                                        Text(days[index].0)
-                                            .font(.system(size: 12, weight: .medium))
-                                        Text(days[index].1)
-                                            .font(.system(size: 20, weight: .bold))
+                    if isLoadingSlots {
+                        ProgressView("Loading open times…")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                    } else if dayGroups.isEmpty {
+                        Text("No open slots in the next two weeks. Update your availability in Account.")
+                            .font(.system(size: 14))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(dayGroups.indices, id: \.self) { index in
+                                    Button {
+                                        selectedDayIndex = index
+                                        selectedSlot = nil
+                                    } label: {
+                                        let parts = dayGroups[index].dayLabel.split(separator: " ")
+                                        VStack(spacing: 4) {
+                                            Text(parts.first.map(String.init) ?? "")
+                                                .font(.system(size: 12, weight: .medium))
+                                            Text(parts.dropFirst().first.map(String.init) ?? "")
+                                                .font(.system(size: 20, weight: .bold))
+                                        }
+                                        .padding(.vertical, 16)
+                                        .padding(.horizontal, 24)
+                                        .background(selectedDayIndex == index ? AppColors.primary : AppColors.secondary.opacity(0.15))
+                                        .foregroundColor(selectedDayIndex == index ? AppColors.onPrimary : AppColors.onSurface)
+                                        .cornerRadius(16)
                                     }
-                                    .padding(.vertical, 16)
-                                    .padding(.horizontal, 24)
-                                    .background(selectedDay == index ? AppColors.primary : AppColors.secondary.opacity(0.15))
-                                    .foregroundColor(selectedDay == index ? AppColors.onPrimary : AppColors.onSurface)
-                                    .cornerRadius(16)
                                 }
                             }
                         }
-                    }
 
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("SUGGESTED SLOTS")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(AppColors.onSurfaceVariant)
-                            .kerning(1.2)
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("OPEN SLOTS")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(AppColors.onSurfaceVariant)
+                                .kerning(1.2)
 
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            ForEach(0..<slots.count, id: \.self) { index in
-                                Button(action: { selectedTime = index }) {
-                                    VStack(spacing: 4) {
-                                        Text(slots[index].0)
-                                            .font(.system(size: 12, weight: .medium))
-                                        Text(slots[index].1)
-                                            .font(.system(size: 16, weight: .semibold))
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(slotsForSelectedDay) { slot in
+                                    Button {
+                                        selectedSlot = slot
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            Text("45 min")
+                                                .font(.system(size: 12, weight: .medium))
+                                            Text(slot.timeLabel)
+                                                .font(.system(size: 16, weight: .semibold))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 16)
+                                        .background(selectedSlot == slot ? AppColors.primary : AppColors.surfaceContainerLowest)
+                                        .foregroundColor(selectedSlot == slot ? AppColors.onPrimary : AppColors.onSurface)
+                                        .cornerRadius(12)
                                     }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(selectedTime == index ? AppColors.primary : AppColors.surfaceContainerLowest)
-                                    .foregroundColor(selectedTime == index ? AppColors.onPrimary : AppColors.onSurface)
-                                    .cornerRadius(12)
                                 }
                             }
                         }
@@ -249,12 +262,12 @@ struct SchedulingView: View {
                         .foregroundColor(AppColors.onPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(selectedTime != nil ? AppColors.primary : AppColors.primary.opacity(0.5))
+                        .background(selectedSlot != nil ? AppColors.primary : AppColors.primary.opacity(0.5))
                         .cornerRadius(16)
                     }
-                    .disabled(selectedTime == nil || isConfirming)
+                    .disabled(selectedSlot == nil || isConfirming)
 
-                    Text("Confirming saves this chat to your Match History.")
+                    Text("Saves to History, adds a calendar event, and emails an .ics invite.")
                         .font(.system(size: 10, weight: .regular))
                         .foregroundColor(AppColors.onSurfaceVariant)
                         .multilineTextAlignment(.center)
@@ -267,25 +280,39 @@ struct SchedulingView: View {
         }
     }
 
+    private func reloadSlots() async {
+        guard activeMatch != nil else {
+            dayGroups = []
+            return
+        }
+        isLoadingSlots = true
+        selectedSlot = nil
+        selectedDayIndex = 0
+        let slots = await repository.availableSlots()
+        dayGroups = AvailabilityEngine.groupByDay(slots)
+        isLoadingSlots = false
+    }
+
     private func confirmChat(for match: PendingMatch) {
-        guard let selectedTime else { return }
+        guard let selectedSlot else { return }
         isConfirming = true
         statusMessage = ""
-        let dayLabel = "\(days[selectedDay].0) \(days[selectedDay].1)"
-        let timeLabel = slots[selectedTime].1
 
         Task {
             do {
                 let chat = try await repository.scheduleChat(
                     for: match,
-                    dayLabel: dayLabel,
-                    timeLabel: timeLabel,
+                    startsAt: selectedSlot.startsAt,
+                    endsAt: selectedSlot.endsAt,
+                    dayLabel: selectedSlot.dayLabel,
+                    timeLabel: selectedSlot.timeLabel,
                     setting: selectedSetting.rawValue,
                     talkingPoints: talkingPoints
                 )
                 confirmedChatName = chat.candidateName
-                self.selectedTime = nil
+                self.selectedSlot = nil
                 talkingPoints = ""
+                await reloadSlots()
             } catch {
                 statusMessage = error.localizedDescription
             }
@@ -314,12 +341,5 @@ struct SettingButton: View {
             .foregroundColor(isSelected ? AppColors.onSurface : AppColors.onSurfaceVariant)
             .cornerRadius(12)
         }
-    }
-}
-
-struct SchedulingView_Previews: PreviewProvider {
-    static var previews: some View {
-        SchedulingView()
-            .environmentObject(AppRepository.shared)
     }
 }

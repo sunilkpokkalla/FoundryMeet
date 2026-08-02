@@ -7,9 +7,13 @@ struct VerifiedCredential: Codable, Identifiable, Equatable {
     var url: String
     /// pending | verified | rejected
     var status: String
+    var rejectionReason: String?
+    var reviewedAt: Date?
+    var reviewedBy: String?
     var createdAt: Date
 
     var isVerified: Bool { status == "verified" }
+    var isRejected: Bool { status == "rejected" }
 
     init(
         id: String = UUID().uuidString,
@@ -17,6 +21,9 @@ struct VerifiedCredential: Codable, Identifiable, Equatable {
         issuer: String,
         url: String,
         status: String = "pending",
+        rejectionReason: String? = nil,
+        reviewedAt: Date? = nil,
+        reviewedBy: String? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -24,6 +31,9 @@ struct VerifiedCredential: Codable, Identifiable, Equatable {
         self.issuer = issuer
         self.url = url
         self.status = status
+        self.rejectionReason = rejectionReason
+        self.reviewedAt = reviewedAt
+        self.reviewedBy = reviewedBy
         self.createdAt = createdAt
     }
 }
@@ -40,6 +50,10 @@ struct UserProfile: Codable, Equatable {
     var bio: String?
     var industry: String?
     var credentials: [VerifiedCredential]
+    var availability: [AvailabilityWindow]
+    var photoURL: String?
+    var fcmTokens: [String]
+    var isReviewer: Bool
     var isDiscoverable: Bool
     var onboardingCompleted: Bool
     var createdAt: Date
@@ -57,6 +71,10 @@ struct UserProfile: Codable, Equatable {
         bio: String? = nil,
         industry: String? = nil,
         credentials: [VerifiedCredential] = [],
+        availability: [AvailabilityWindow] = AvailabilityWindow.defaultWorkWeek,
+        photoURL: String? = nil,
+        fcmTokens: [String] = [],
+        isReviewer: Bool = false,
         isDiscoverable: Bool = true,
         onboardingCompleted: Bool = false,
         createdAt: Date = Date(),
@@ -73,6 +91,10 @@ struct UserProfile: Codable, Equatable {
         self.bio = bio
         self.industry = industry
         self.credentials = credentials
+        self.availability = availability
+        self.photoURL = photoURL
+        self.fcmTokens = fcmTokens
+        self.isReviewer = isReviewer
         self.isDiscoverable = isDiscoverable
         self.onboardingCompleted = onboardingCompleted
         self.createdAt = createdAt

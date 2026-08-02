@@ -27,13 +27,18 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var talkingPoints: String
     var notes: String
     var status: String
+    var startsAt: Date?
+    var endsAt: Date?
+    var calendarEventId: String?
+    /// none | local | emailed | failed
+    var inviteStatus: String
     var createdAt: Date
     var updatedAt: Date
 
     var metOnLabel: String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        return formatter.string(from: createdAt)
+        return formatter.string(from: startsAt ?? createdAt)
     }
 }
 
@@ -111,7 +116,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
             id: profile.id,
             name: profile.displayName.isEmpty ? "Founder" : profile.displayName,
             role: profile.role ?? "Founder",
-            imgUrl: "",
+            imgUrl: profile.photoURL ?? "",
             desc: profile.bio?.isEmpty == false
                 ? profile.bio!
                 : (profile.goal.map { "Looking for: \($0)" } ?? "Open to high-signal coffee chats."),

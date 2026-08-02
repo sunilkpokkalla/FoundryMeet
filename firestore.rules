@@ -9,6 +9,11 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function isReviewer() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isReviewer == true;
+    }
+
     match /users/{userId} {
       allow read: if signedIn();
       allow create, update: if isSelf(userId);
@@ -45,6 +50,23 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds;
         allow update, delete: if false;
       }
+    }
+
+    match /mailOutbox/{mailId} {
+      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
+    match /pushOutbox/{pushId} {
+      allow create: if signedIn();
+      allow read, update, delete: if false;
+    }
+
+    match /credentialReviews/{reviewId} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isReviewer() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isReviewer();
+      allow delete: if false;
     }
   }
 }

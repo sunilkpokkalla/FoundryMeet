@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct ProfileView: View {
     @EnvironmentObject private var authManager: AuthManager
@@ -18,9 +20,13 @@ struct ProfileView: View {
     @State private var statusMessage = ""
     @State private var showMessages = false
     @State private var showAddCredential = false
+    @State private var showAvailability = false
+    @State private var showReviewQueue = false
     @State private var credTitle = ""
     @State private var credIssuer = ""
     @State private var credURL = ""
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isUploadingPhoto = false
 
     var body: some View {
         NavigationStack {
@@ -59,6 +65,14 @@ struct ProfileView: View {
             .sheet(isPresented: $showMessages) {
                 MessagesView()
             }
+            .sheet(isPresented: $showAvailability) {
+                AvailabilityEditorView()
+                    .environmentObject(repository)
+            }
+            .sheet(isPresented: $showReviewQueue) {
+                CredentialReviewQueueView()
+                    .environmentObject(repository)
+            }
             .alert("Add credential", isPresented: $showAddCredential) {
                 TextField("Title", text: $credTitle)
                 TextField("Issuer", text: $credIssuer)
@@ -74,10 +88,15 @@ struct ProfileView: View {
                         credTitle = ""
                         credIssuer = ""
                         credURL = ""
+                        statusMessage = "Credential submitted for review."
                     }
                 }
             } message: {
-                Text("Links are marked pending until verified.")
+                Text("Links are marked pending until a reviewer verifies them.")
+            }
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                Task { await uploadPhoto(item) }
             }
         }
     }
@@ -133,14 +152,32 @@ struct ProfileView: View {
 
     private var profileHero: some View {
         HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(AppColors.accentSoft)
-                    .frame(width: 64, height: 64)
-                Text(repository.profile?.initials ?? "FM")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(AppColors.secondary)
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                ZStack {
+                    if let urlString = repository.profile?.photoURL,
+                       let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().scaledToFill()
+                            default:
+                                avatarFallback
+                            }
+                        }
+                    } else {
+                        avatarFallback
+                    }
+
+                    if isUploadingPhoto {
+                        Circle().fill(Color.black.opacity(0.35))
+                        ProgressView().tint(.white)
+                    }
+                }
+                .frame(width: 72, height: 72)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
             }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(repository.profile?.displayName ?? authManager.displayName)
@@ -150,6 +187,9 @@ struct ProfileView: View {
                 Text(authManager.email)
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.onSurfaceVariant)
+                Text("Tap photo to update")
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.secondary)
                 if let role = repository.profile?.role, !role.isEmpty {
                     Text(role)
                         .font(.system(size: 13, weight: .medium))
@@ -162,6 +202,15 @@ struct ProfileView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
+    }
+
+    private var avatarFallback: some View {
+        ZStack {
+            Circle().fill(AppColors.accentSoft)
+            Text(repository.profile?.initials ?? "FM")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(AppColors.secondary)
+        }
     }
 
     private var editSection: some View {
@@ -297,9 +346,12 @@ struct ProfileView: View {
 
     private func credentialRow(_ credential: VerifiedCredential) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: credential.isVerified ? "checkmark.seal.fill" : "seal")
+            Image(systemName: credential.isVerified ? "checkmark.seal.fill" : (credential.isRejected ? "xmark.seal.fill" : "seal"))
                 .font(.system(size: 18))
-                .foregroundColor(credential.isVerified ? Color(hex: 0x2F6B3A) : AppColors.secondary)
+                .foregroundColor(
+                    credential.isVerified ? Color(hex: 0x2F6B3A)
+                        : (credential.isRejected ? Color(hex: 0xB42318) : AppColors.secondary)
+                )
                 .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -309,9 +361,17 @@ struct ProfileView: View {
                 Text(credential.issuer)
                     .font(.system(size: 13))
                     .foregroundColor(AppColors.onSurfaceVariant)
-                Text(credential.isVerified ? "Verified" : "Pending review")
+                Text(credential.isVerified ? "Verified" : (credential.isRejected ? "Rejected" : "Pending review"))
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(credential.isVerified ? Color(hex: 0x2F6B3A) : AppColors.secondary)
+                    .foregroundColor(
+                        credential.isVerified ? Color(hex: 0x2F6B3A)
+                            : (credential.isRejected ? Color(hex: 0xB42318) : AppColors.secondary)
+                    )
+                if let reason = credential.rejectionReason, credential.isRejected {
+                    Text(reason)
+                        .font(.system(size: 12))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                }
             }
 
             Spacer(minLength: 0)
@@ -329,7 +389,7 @@ struct ProfileView: View {
 #if DEBUG
         .contextMenu {
             if !credential.isVerified {
-                Button("Mark verified") {
+                Button("Mark verified (debug)") {
                     Task { try? await repository.verifyCredential(id: credential.id) }
                 }
             }
@@ -339,30 +399,29 @@ struct ProfileView: View {
 
     private var actionsSection: some View {
         VStack(spacing: 10) {
-            Button {
-                showMessages = true
-            } label: {
-                HStack {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.system(size: 15, weight: .medium))
-                    Text("Messages")
-                        .font(.system(size: 16, weight: .medium))
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(AppColors.onSurfaceVariant.opacity(0.5))
-                }
-                .foregroundColor(AppColors.onSurface)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 16)
-                .background(AppColors.surfaceContainerLowest)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppColors.hairline, lineWidth: 1)
-                )
+            actionRow(title: "Availability", icon: "calendar") {
+                showAvailability = true
             }
-            .buttonStyle(.plain)
+            actionRow(title: "Messages", icon: "bubble.left.and.bubble.right") {
+                showMessages = true
+            }
+
+            if repository.profile?.isReviewer == true {
+                actionRow(title: "Credential review queue", icon: "checkmark.seal") {
+                    showReviewQueue = true
+                }
+            }
+
+#if DEBUG
+            actionRow(title: "Enable reviewer (debug)", icon: "person.badge.shield.checkmark") {
+                Task {
+                    guard var profile = repository.profile else { return }
+                    profile.isReviewer = true
+                    try? await repository.updateProfile(profile)
+                    statusMessage = "Reviewer mode enabled."
+                }
+            }
+#endif
 
             Button {
                 authManager.signOut()
@@ -384,6 +443,31 @@ struct ProfileView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)
+    }
+
+    private func actionRow(title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .medium))
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.onSurfaceVariant.opacity(0.5))
+            }
+            .foregroundColor(AppColors.onSurface)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
+            .background(AppColors.surfaceContainerLowest)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(AppColors.hairline, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func sectionLabel(_ title: String) -> some View {
@@ -425,6 +509,24 @@ struct ProfileView: View {
                 .foregroundColor(AppColors.onSurface)
         }
         .padding(.vertical, 12)
+    }
+
+    private func uploadPhoto(_ item: PhotosPickerItem) async {
+        isUploadingPhoto = true
+        defer { isUploadingPhoto = false }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data),
+                  let jpeg = PhotoStorageService.jpegData(from: image)
+            else {
+                statusMessage = "Could not read that photo."
+                return
+            }
+            try await repository.uploadProfilePhoto(jpeg)
+            statusMessage = "Profile photo updated."
+        } catch {
+            statusMessage = error.localizedDescription
+        }
     }
 
     private func loadDraft() {

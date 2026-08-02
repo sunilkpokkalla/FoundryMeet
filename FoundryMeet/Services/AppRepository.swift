@@ -113,10 +113,30 @@ final class AppRepository: ObservableObject {
     }
 
     func addCredential(title: String, issuer: String, url: String) async throws {
-        guard var current = profile else { throw RepositoryError.notSignedIn }
+        guard var current = profile, let userId else { throw RepositoryError.notSignedIn }
         let credential = VerifiedCredential(title: title, issuer: issuer, url: url, status: "pending")
         current.credentials.append(credential)
         try await updateProfile(current)
+
+        let review = CredentialReview(
+            userId: userId,
+            userName: current.displayName,
+            userEmail: current.email,
+            credentialId: credential.id,
+            title: credential.title,
+            issuer: credential.issuer,
+            url: credential.url
+        )
+        try await saveCredentialReview(review)
+
+        try await enqueueMail(
+            to: [current.email],
+            subject: "Credential submitted for review",
+            htmlBody: "<p>Your credential <strong>\(credential.title)</strong> from \(credential.issuer) was submitted for review.</p>",
+            textBody: "Your credential \(credential.title) from \(credential.issuer) was submitted for review.",
+            template: "credential_submitted",
+            relatedCredentialId: credential.id
+        )
     }
 
     func removeCredential(id: String) async throws {
@@ -125,14 +145,270 @@ final class AppRepository: ObservableObject {
         try await updateProfile(current)
     }
 
-    /// Demo helper: mark a pending credential as verified (admin flow later).
     func verifyCredential(id: String) async throws {
-        guard var current = profile else { throw RepositoryError.notSignedIn }
-        guard let index = current.credentials.firstIndex(where: { $0.id == id }) else {
-            throw RepositoryError.notFound
+        guard let ownerId = userId ?? profile?.id else { throw RepositoryError.notSignedIn }
+        try await reviewCredential(credentialOwnerId: ownerId, credentialId: id, approve: true, reason: nil)
+    }
+
+    func loadPendingCredentialReviews() async throws -> [CredentialReview] {
+        if usesLocalStore {
+            let all = (try? readLocal(key: "credential_reviews", as: [CredentialReview].self)) ?? []
+            return all.filter { $0.status == "pending" }.sorted { $0.createdAt > $1.createdAt }
         }
-        current.credentials[index].status = "verified"
+        let snapshot = try await db.collection("credentialReviews")
+            .whereField("status", isEqualTo: "pending")
+            .getDocuments()
+        return snapshot.documents
+            .compactMap { CredentialReview(id: $0.documentID, firestoreData: $0.data()) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func reviewCredential(
+        credentialOwnerId: String,
+        credentialId: String,
+        approve: Bool,
+        reason: String?
+    ) async throws {
+        guard let reviewerId = userId else { throw RepositoryError.notSignedIn }
+
+        if usesLocalStore {
+            var reviews = (try? readLocal(key: "credential_reviews", as: [CredentialReview].self)) ?? []
+            if let index = reviews.firstIndex(where: { $0.userId == credentialOwnerId && $0.credentialId == credentialId }) {
+                reviews[index].status = approve ? "verified" : "rejected"
+                reviews[index].rejectionReason = reason
+                reviews[index].reviewedBy = reviewerId
+                reviews[index].updatedAt = Date()
+                try writeLocal(reviews, key: "credential_reviews")
+            }
+        } else {
+            let snapshot = try await db.collection("credentialReviews")
+                .whereField("userId", isEqualTo: credentialOwnerId)
+                .whereField("credentialId", isEqualTo: credentialId)
+                .getDocuments()
+            for doc in snapshot.documents {
+                try await doc.reference.setData([
+                    "status": approve ? "verified" : "rejected",
+                    "rejectionReason": reason as Any,
+                    "reviewedBy": reviewerId,
+                    "updatedAt": Timestamp(date: Date())
+                ], merge: true)
+            }
+        }
+
+        // Update owner profile credentials
+        if var owner = try await loadProfile(userId: credentialOwnerId) {
+            if let index = owner.credentials.firstIndex(where: { $0.id == credentialId }) {
+                owner.credentials[index].status = approve ? "verified" : "rejected"
+                owner.credentials[index].rejectionReason = reason
+                owner.credentials[index].reviewedAt = Date()
+                owner.credentials[index].reviewedBy = reviewerId
+                owner.updatedAt = Date()
+                try await saveProfile(owner)
+                if owner.id == userId {
+                    profile = owner
+                }
+                try await enqueueMail(
+                    to: [owner.email],
+                    subject: approve ? "Credential verified" : "Credential needs attention",
+                    htmlBody: approve
+                        ? "<p>Your credential <strong>\(owner.credentials[index].title)</strong> was verified.</p>"
+                        : "<p>Your credential <strong>\(owner.credentials[index].title)</strong> was not verified. \(reason ?? "")</p>",
+                    textBody: approve
+                        ? "Your credential \(owner.credentials[index].title) was verified."
+                        : "Your credential \(owner.credentials[index].title) was not verified. \(reason ?? "")",
+                    template: approve ? "credential_verified" : "credential_rejected",
+                    relatedCredentialId: credentialId
+                )
+            }
+        }
+    }
+
+    func updateAvailability(_ windows: [AvailabilityWindow]) async throws {
+        guard var current = profile else { throw RepositoryError.notSignedIn }
+        current.availability = windows
         try await updateProfile(current)
+    }
+
+    func uploadProfilePhoto(_ imageData: Data) async throws {
+        guard var current = profile, let userId else { throw RepositoryError.notSignedIn }
+        let url = try await PhotoStorageService.uploadAvatar(
+            userId: userId,
+            imageData: imageData,
+            useLocalStore: usesLocalStore
+        )
+        current.photoURL = url
+        try await updateProfile(current)
+    }
+
+    func availableSlots(meetingMinutes: Int = 45) async -> [AvailableSlot] {
+        let windows = profile?.availability.isEmpty == false
+            ? (profile?.availability ?? AvailabilityWindow.defaultWorkWeek)
+            : AvailabilityWindow.defaultWorkWeek
+
+        let start = Date()
+        let end = Calendar.current.date(byAdding: .day, value: 14, to: start) ?? start.addingTimeInterval(14 * 86400)
+        let busy = await CalendarInviteService.shared.busyIntervals(from: start, to: end)
+
+        return AvailabilityEngine.generateSlots(
+            windows: windows,
+            from: start,
+            dayCount: 14,
+            meetingMinutes: meetingMinutes,
+            stepMinutes: 30,
+            busyIntervals: busy
+        )
+    }
+
+    func scheduleChat(
+        for match: PendingMatch,
+        startsAt: Date,
+        endsAt: Date,
+        dayLabel: String,
+        timeLabel: String,
+        setting: String,
+        talkingPoints: String
+    ) async throws -> CoffeeChat {
+        guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
+
+        var inviteStatus = "none"
+        var calendarEventId: String?
+
+        do {
+            calendarEventId = try await CalendarInviteService.shared.createEvent(
+                title: "FoundryMeet coffee with \(match.candidateName)",
+                notes: talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : talkingPoints,
+                location: setting,
+                startsAt: startsAt,
+                endsAt: endsAt
+            )
+            inviteStatus = "local"
+        } catch {
+            // Continue — chat still saves even if calendar permission denied.
+            inviteStatus = "failed"
+        }
+
+        let chat = CoffeeChat(
+            id: UUID().uuidString,
+            userId: userId,
+            candidateId: match.candidateId,
+            candidateName: match.candidateName,
+            candidateRole: match.candidateRole,
+            dayLabel: dayLabel,
+            timeLabel: timeLabel,
+            setting: setting,
+            talkingPoints: talkingPoints,
+            notes: "",
+            status: "scheduled",
+            startsAt: startsAt,
+            endsAt: endsAt,
+            calendarEventId: calendarEventId,
+            inviteStatus: inviteStatus,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        try await saveChat(chat)
+
+        var updated = match
+        updated.status = "scheduled"
+        try await savePendingMatch(updated)
+
+        chats.insert(chat, at: 0)
+        pendingMatches.removeAll { $0.id == match.id }
+
+        let ics = ICSBuilder.event(
+            uid: chat.id,
+            summary: "FoundryMeet coffee with \(match.candidateName)",
+            description: talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : talkingPoints,
+            startsAt: startsAt,
+            endsAt: endsAt,
+            location: setting,
+            organizerEmail: me.email
+        )
+
+        var recipients = [me.email]
+        if let candidate = try? await loadProfile(userId: match.candidateId), !candidate.email.isEmpty {
+            recipients.append(candidate.email)
+        }
+
+        try await enqueueMail(
+            to: Array(Set(recipients)),
+            subject: "Coffee chat confirmed with \(match.candidateName)",
+            htmlBody: """
+            <p>Your FoundryMeet coffee chat is confirmed.</p>
+            <p><strong>\(dayLabel) · \(timeLabel)</strong><br/>Setting: \(setting)</p>
+            <p>An .ics calendar invite is attached.</p>
+            """,
+            textBody: "Coffee chat confirmed: \(dayLabel) \(timeLabel). Setting: \(setting).",
+            icsContent: ics,
+            template: "chat_invite",
+            relatedChatId: chat.id
+        )
+
+        if inviteStatus == "local" {
+            // Mark emailed once outbox is queued; Cloud Function completes delivery.
+            var emailed = chat
+            emailed.inviteStatus = "emailed"
+            try await saveChat(emailed)
+            if let index = chats.firstIndex(where: { $0.id == chat.id }) {
+                chats[index] = emailed
+            }
+        }
+
+        PushNotificationService.shared.scheduleChatReminder(
+            chatId: chat.id,
+            title: "Coffee with \(match.candidateName) in 15 minutes",
+            startsAt: startsAt
+        )
+
+        return chat
+    }
+
+    func enqueueMail(
+        to: [String],
+        subject: String,
+        htmlBody: String,
+        textBody: String,
+        icsContent: String? = nil,
+        template: String,
+        relatedChatId: String? = nil,
+        relatedCredentialId: String? = nil
+    ) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        let item = MailOutboxItem(
+            to: to.filter { !$0.isEmpty },
+            subject: subject,
+            htmlBody: htmlBody,
+            textBody: textBody,
+            icsContent: icsContent,
+            template: template,
+            relatedChatId: relatedChatId,
+            relatedCredentialId: relatedCredentialId,
+            createdBy: userId
+        )
+        guard !item.to.isEmpty else { return }
+
+        if usesLocalStore {
+            var all = (try? readLocal(key: "mail_outbox", as: [MailOutboxItem].self)) ?? []
+            // Debug: mark as "sent" locally so flows are testable without Functions.
+            var delivered = item
+            delivered.status = "sent"
+            delivered.updatedAt = Date()
+            all.insert(delivered, at: 0)
+            try writeLocal(all, key: "mail_outbox")
+            return
+        }
+        try await db.collection("mailOutbox").document(item.id).setData(item.firestoreData, merge: true)
+    }
+
+    private func saveCredentialReview(_ review: CredentialReview) async throws {
+        if usesLocalStore {
+            var all = (try? readLocal(key: "credential_reviews", as: [CredentialReview].self)) ?? []
+            all.removeAll { $0.id == review.id }
+            all.insert(review, at: 0)
+            try writeLocal(all, key: "credential_reviews")
+            return
+        }
+        try await db.collection("credentialReviews").document(review.id).setData(review.firestoreData, merge: true)
     }
 
     func hasCompletedOnboarding(for userId: String) -> Bool {
@@ -225,41 +501,6 @@ final class AppRepository: ObservableObject {
         discoveryFeed.removeAll { $0.id == candidate.id }
     }
 
-    func scheduleChat(
-        for match: PendingMatch,
-        dayLabel: String,
-        timeLabel: String,
-        setting: String,
-        talkingPoints: String
-    ) async throws -> CoffeeChat {
-        guard let userId else { throw RepositoryError.notSignedIn }
-
-        let chat = CoffeeChat(
-            id: UUID().uuidString,
-            userId: userId,
-            candidateId: match.candidateId,
-            candidateName: match.candidateName,
-            candidateRole: match.candidateRole,
-            dayLabel: dayLabel,
-            timeLabel: timeLabel,
-            setting: setting,
-            talkingPoints: talkingPoints,
-            notes: "",
-            status: "scheduled",
-            createdAt: Date(),
-            updatedAt: Date()
-        )
-        try await saveChat(chat)
-
-        var updated = match
-        updated.status = "scheduled"
-        try await savePendingMatch(updated)
-
-        chats.insert(chat, at: 0)
-        pendingMatches.removeAll { $0.id == match.id }
-        return chat
-    }
-
     func updateChatNotes(chatId: String, notes: String) async throws {
         guard var chat = chats.first(where: { $0.id == chatId }) else {
             throw RepositoryError.notFound
@@ -331,6 +572,20 @@ final class AppRepository: ObservableObject {
             if let index = threads.firstIndex(where: { $0.id == threadId }) {
                 threads[index] = thread
                 threads.sort { $0.updatedAt > $1.updatedAt }
+            }
+
+            // Queue push for other participants (Cloud Function delivers via FCM).
+            let recipients = thread.participantIds.filter { $0 != userId }
+            if !usesLocalStore, !recipients.isEmpty {
+                let title = profile?.displayName.isEmpty == false ? (profile?.displayName ?? "New message") : "New message"
+                try? await db.collection("pushOutbox").document(UUID().uuidString).setData([
+                    "recipientIds": recipients,
+                    "title": title,
+                    "body": trimmed,
+                    "threadId": threadId,
+                    "status": "pending",
+                    "createdAt": Timestamp(date: Date())
+                ], merge: true)
             }
         }
         return message
@@ -578,6 +833,9 @@ extension UserProfile {
             "displayName": displayName,
             "skills": skills,
             "credentials": credentials.map(\.firestoreData),
+            "availability": availability.map(\.firestoreData),
+            "fcmTokens": fcmTokens,
+            "isReviewer": isReviewer,
             "isDiscoverable": isDiscoverable,
             "onboardingCompleted": onboardingCompleted,
             "createdAt": Timestamp(date: createdAt),
@@ -589,11 +847,14 @@ extension UserProfile {
         if let goal { data["goal"] = goal }
         if let bio { data["bio"] = bio }
         if let industry { data["industry"] = industry }
+        if let photoURL { data["photoURL"] = photoURL }
         return data
     }
 
     init(id: String, firestoreData data: [String: Any]) {
         let credentialMaps = data["credentials"] as? [[String: Any]] ?? []
+        let availabilityMaps = data["availability"] as? [[String: Any]] ?? []
+        let windows = availabilityMaps.compactMap(AvailabilityWindow.init(firestoreData:))
         self.init(
             id: id,
             email: data["email"] as? String ?? "",
@@ -606,6 +867,10 @@ extension UserProfile {
             bio: data["bio"] as? String,
             industry: data["industry"] as? String,
             credentials: credentialMaps.compactMap(VerifiedCredential.init(firestoreData:)),
+            availability: windows.isEmpty ? AvailabilityWindow.defaultWorkWeek : windows,
+            photoURL: data["photoURL"] as? String,
+            fcmTokens: data["fcmTokens"] as? [String] ?? [],
+            isReviewer: data["isReviewer"] as? Bool ?? false,
             isDiscoverable: data["isDiscoverable"] as? Bool ?? true,
             onboardingCompleted: data["onboardingCompleted"] as? Bool ?? false,
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
@@ -614,9 +879,34 @@ extension UserProfile {
     }
 }
 
-extension VerifiedCredential {
+extension AvailabilityWindow {
     var firestoreData: [String: Any] {
         [
+            "id": id,
+            "weekday": weekday,
+            "startMinutes": startMinutes,
+            "endMinutes": endMinutes
+        ]
+    }
+
+    init?(firestoreData data: [String: Any]) {
+        guard
+            let weekday = data["weekday"] as? Int,
+            let startMinutes = data["startMinutes"] as? Int,
+            let endMinutes = data["endMinutes"] as? Int
+        else { return nil }
+        self.init(
+            id: data["id"] as? String ?? UUID().uuidString,
+            weekday: weekday,
+            startMinutes: startMinutes,
+            endMinutes: endMinutes
+        )
+    }
+}
+
+extension VerifiedCredential {
+    var firestoreData: [String: Any] {
+        var data: [String: Any] = [
             "id": id,
             "title": title,
             "issuer": issuer,
@@ -624,6 +914,10 @@ extension VerifiedCredential {
             "status": status,
             "createdAt": Timestamp(date: createdAt)
         ]
+        if let rejectionReason { data["rejectionReason"] = rejectionReason }
+        if let reviewedAt { data["reviewedAt"] = Timestamp(date: reviewedAt) }
+        if let reviewedBy { data["reviewedBy"] = reviewedBy }
+        return data
     }
 
     init?(firestoreData data: [String: Any]) {
@@ -640,6 +934,9 @@ extension VerifiedCredential {
             issuer: issuer,
             url: url,
             status: status,
+            rejectionReason: data["rejectionReason"] as? String,
+            reviewedAt: (data["reviewedAt"] as? Timestamp)?.dateValue(),
+            reviewedBy: data["reviewedBy"] as? String,
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
         )
     }
@@ -709,7 +1006,7 @@ private extension PendingMatch {
 
 private extension CoffeeChat {
     var firestoreData: [String: Any] {
-        [
+        var data: [String: Any] = [
             "userId": userId,
             "candidateId": candidateId,
             "candidateName": candidateName,
@@ -720,9 +1017,14 @@ private extension CoffeeChat {
             "talkingPoints": talkingPoints,
             "notes": notes,
             "status": status,
+            "inviteStatus": inviteStatus,
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": Timestamp(date: updatedAt)
         ]
+        if let startsAt { data["startsAt"] = Timestamp(date: startsAt) }
+        if let endsAt { data["endsAt"] = Timestamp(date: endsAt) }
+        if let calendarEventId { data["calendarEventId"] = calendarEventId }
+        return data
     }
 
     init?(id: String, firestoreData data: [String: Any]) {
@@ -744,6 +1046,77 @@ private extension CoffeeChat {
             talkingPoints: data["talkingPoints"] as? String ?? "",
             notes: data["notes"] as? String ?? "",
             status: data["status"] as? String ?? "scheduled",
+            startsAt: (data["startsAt"] as? Timestamp)?.dateValue(),
+            endsAt: (data["endsAt"] as? Timestamp)?.dateValue(),
+            calendarEventId: data["calendarEventId"] as? String,
+            inviteStatus: data["inviteStatus"] as? String ?? "none",
+            createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
+            updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
+        )
+    }
+}
+
+extension MailOutboxItem {
+    var firestoreData: [String: Any] {
+        var data: [String: Any] = [
+            "to": to,
+            "subject": subject,
+            "htmlBody": htmlBody,
+            "textBody": textBody,
+            "template": template,
+            "status": status,
+            "createdAt": Timestamp(date: createdAt),
+            "updatedAt": Timestamp(date: updatedAt),
+            "createdBy": createdBy
+        ]
+        if let icsContent { data["icsContent"] = icsContent }
+        if let relatedChatId { data["relatedChatId"] = relatedChatId }
+        if let relatedCredentialId { data["relatedCredentialId"] = relatedCredentialId }
+        if let errorMessage { data["errorMessage"] = errorMessage }
+        return data
+    }
+}
+
+extension CredentialReview {
+    var firestoreData: [String: Any] {
+        var data: [String: Any] = [
+            "userId": userId,
+            "userName": userName,
+            "userEmail": userEmail,
+            "credentialId": credentialId,
+            "title": title,
+            "issuer": issuer,
+            "url": url,
+            "status": status,
+            "createdAt": Timestamp(date: createdAt),
+            "updatedAt": Timestamp(date: updatedAt)
+        ]
+        if let rejectionReason { data["rejectionReason"] = rejectionReason }
+        if let reviewedBy { data["reviewedBy"] = reviewedBy }
+        return data
+    }
+
+    init?(id: String, firestoreData data: [String: Any]) {
+        guard
+            let userId = data["userId"] as? String,
+            let credentialId = data["credentialId"] as? String,
+            let title = data["title"] as? String,
+            let issuer = data["issuer"] as? String,
+            let url = data["url"] as? String,
+            let status = data["status"] as? String
+        else { return nil }
+        self.init(
+            id: id,
+            userId: userId,
+            userName: data["userName"] as? String ?? "",
+            userEmail: data["userEmail"] as? String ?? "",
+            credentialId: credentialId,
+            title: title,
+            issuer: issuer,
+            url: url,
+            status: status,
+            rejectionReason: data["rejectionReason"] as? String,
+            reviewedBy: data["reviewedBy"] as? String,
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
             updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
         )

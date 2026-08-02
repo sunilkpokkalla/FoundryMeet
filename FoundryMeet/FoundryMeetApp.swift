@@ -1,6 +1,9 @@
 import SwiftUI
+import UIKit
 import FirebaseCore
+import FirebaseMessaging
 import GoogleSignIn
+import UserNotifications
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
@@ -11,6 +14,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
         }
 
+        PushNotificationService.shared.configure()
+        Task {
+            await PushNotificationService.shared.requestPermissionAndRegister()
+        }
+
         return true
     }
 
@@ -18,6 +26,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                      open url: URL,
                      options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         GIDSignIn.sharedInstance.handle(url)
+    }
+
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Messaging.messaging().apnsToken = deviceToken
     }
 }
 
