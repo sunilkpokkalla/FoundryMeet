@@ -629,7 +629,12 @@ final class AppRepository: ObservableObject {
     }
 
     func dismissCandidate(_ candidate: DiscoveryCandidate) async throws {
-        try await recordInteraction(candidate, action: .dismissed)
+        try await recordInteraction(
+            candidateId: candidate.id,
+            candidateName: candidate.name,
+            candidateRole: candidate.role,
+            action: .dismissed
+        )
         excludedCandidateIds.insert(candidate.id)
         discoveryFeed.removeAll { $0.id == candidate.id }
     }
@@ -665,7 +670,12 @@ final class AppRepository: ObservableObject {
         try await saveMatchRequest(request)
         upsertMatchRequest(request)
 
-        try await recordInteraction(candidate, action: .connected)
+        try await recordInteraction(
+            candidateId: candidate.id,
+            candidateName: candidate.name,
+            candidateRole: candidate.role,
+            action: .connected
+        )
         excludedCandidateIds.insert(candidate.id)
         discoveryFeed.removeAll { $0.id == candidate.id }
 
@@ -689,6 +699,15 @@ final class AppRepository: ObservableObject {
         updated.updatedAt = Date()
         try await saveMatchRequest(updated)
         upsertMatchRequest(updated)
+
+        // Keep them out of my feed either way; a decline still leaves the door
+        // open for me to reach out later.
+        try await recordInteraction(
+            candidateId: request.requesterId,
+            candidateName: request.requesterName,
+            candidateRole: request.requesterRole,
+            action: accept ? .connected : .dismissed
+        )
         excludedCandidateIds.insert(request.requesterId)
         discoveryFeed.removeAll { $0.id == request.requesterId }
 
@@ -843,13 +862,18 @@ final class AppRepository: ObservableObject {
             .filter { $0.id != userId && $0.isDiscoverable }
     }
 
-    private func recordInteraction(_ candidate: DiscoveryCandidate, action: InteractionAction) async throws {
+    private func recordInteraction(
+        candidateId: String,
+        candidateName: String,
+        candidateRole: String,
+        action: InteractionAction
+    ) async throws {
         guard let userId else { throw RepositoryError.notSignedIn }
         let interaction = ProfileInteraction(
-            id: candidate.id,
-            candidateId: candidate.id,
-            candidateName: candidate.name,
-            candidateRole: candidate.role,
+            id: candidateId,
+            candidateId: candidateId,
+            candidateName: candidateName,
+            candidateRole: candidateRole,
             action: action,
             createdAt: Date()
         )
@@ -861,7 +885,7 @@ final class AppRepository: ObservableObject {
             return
         }
         try await db.collection("users").document(userId)
-            .collection("interactions").document(candidate.id)
+            .collection("interactions").document(candidateId)
             .setData(interaction.firestoreData, merge: true)
     }
 
