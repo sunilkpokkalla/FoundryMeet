@@ -199,28 +199,17 @@ struct ProfileView: View {
         HStack(spacing: 16) {
             PhotosPicker(selection: $photoItem, matching: .images) {
                 ZStack {
-                    if let urlString = repository.profile?.photoURL,
-                       let url = URL(string: urlString) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image.resizable().scaledToFill()
-                            default:
-                                avatarFallback
-                            }
-                        }
-                    } else {
-                        avatarFallback
-                    }
+                    ProfileAvatarView(
+                        photoURL: repository.profile?.photoURL,
+                        initials: repository.profile?.initials ?? "",
+                        size: 72
+                    )
 
                     if isUploadingPhoto {
                         Circle().fill(Color.black.opacity(0.35))
                         ProgressView().tint(.white)
                     }
                 }
-                .frame(width: 72, height: 72)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
             }
             .buttonStyle(.plain)
 
@@ -263,15 +252,6 @@ struct ProfileView: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
-    }
-
-    private var avatarFallback: some View {
-        ZStack {
-            Circle().fill(AppColors.accentSoft)
-            Text(repository.profile?.initials ?? "FM")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(AppColors.secondary)
-        }
     }
 
     private var editSection: some View {

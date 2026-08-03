@@ -53,19 +53,14 @@ struct ContentView: View {
     }
 
     private func sessionLoadingScreen(message: String?) -> some View {
-        VStack(spacing: 16) {
+        ZStack {
+            AppColors.surface.ignoresSafeArea()
             Image("Logo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 56, height: 56)
-            if let message {
-                Text(message)
-                    .font(.system(size: 14))
-                    .foregroundColor(AppColors.onSurfaceVariant)
-            }
+                .frame(width: 72, height: 72)
+                .accessibilityLabel(message ?? "FoundryMeet")
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppColors.surface.ignoresSafeArea())
     }
 }
 

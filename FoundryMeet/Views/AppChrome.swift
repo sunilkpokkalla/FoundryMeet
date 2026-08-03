@@ -36,39 +36,43 @@ struct AppHeader: View {
 }
 
 /// Circular avatar used in the header and elsewhere. Supports https and local file URLs.
+/// Uses URLSession (not AsyncImage) so Firebase Storage / file:// loads reliably and
+/// re-uploads of the same path refresh instead of sticking on a cached failure.
 struct ProfileAvatarView: View {
     var photoURL: String?
     var initials: String = ""
     var size: CGFloat = 36
 
+    @State private var image: UIImage?
+    @State private var didFail = false
+
     var body: some View {
         Group {
-            if let photoURL, let url = URL(string: photoURL), !photoURL.isEmpty {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure:
-                        fallback
-                    case .empty:
-                        ZStack {
-                            fallback
-                            ProgressView()
-                                .controlSize(.mini)
-                        }
-                    @unknown default:
-                        fallback
-                    }
-                }
-            } else {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if shouldShowFallback {
                 fallback
+            } else {
+                ZStack {
+                    fallback
+                    ProgressView()
+                        .controlSize(.mini)
+                }
             }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
         .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
+        .task(id: photoURL) {
+            await loadImage()
+        }
+    }
+
+    private var shouldShowFallback: Bool {
+        let trimmed = photoURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty || didFail
     }
 
     private var fallback: some View {
@@ -84,6 +88,56 @@ struct ProfileAvatarView: View {
                     .foregroundColor(AppColors.onSurface.opacity(0.85))
             }
         }
+    }
+
+    @MainActor
+    private func loadImage() async {
+        image = nil
+        didFail = false
+
+        let trimmed = photoURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty, let url = Self.resolvedURL(from: trimmed) else {
+            didFail = true
+            return
+        }
+
+        if url.isFileURL {
+            if let loaded = UIImage(contentsOfFile: url.path) {
+                image = loaded
+            } else {
+                didFail = true
+            }
+            return
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse,
+               !(200...299).contains(http.statusCode) {
+                didFail = true
+                return
+            }
+            guard let loaded = UIImage(data: data) else {
+                didFail = true
+                return
+            }
+            image = loaded
+        } catch {
+            didFail = true
+        }
+    }
+
+    /// Accepts https URLs and file paths (`file://…` or absolute POSIX paths).
+    private static func resolvedURL(from string: String) -> URL? {
+        if let url = URL(string: string), url.scheme != nil {
+            return url
+        }
+        if string.hasPrefix("/") {
+            return URL(fileURLWithPath: string)
+        }
+        return nil
     }
 }
 

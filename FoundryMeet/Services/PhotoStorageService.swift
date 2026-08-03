@@ -22,7 +22,20 @@ enum PhotoStorageService {
         metadata.contentType = "image/jpeg"
         _ = try await ref.putDataAsync(imageData, metadata: metadata)
         let url = try await ref.downloadURL()
-        return url.absoluteString
+        // Same Storage path keeps the same download URL after overwrite; bust
+        // client caches so the header refreshes immediately.
+        return cacheBustedURL(url)
+    }
+
+    private static func cacheBustedURL(_ url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.absoluteString
+        }
+        var items = components.queryItems ?? []
+        items.removeAll { $0.name == "fmv" }
+        items.append(URLQueryItem(name: "fmv", value: String(Int(Date().timeIntervalSince1970 * 1000))))
+        components.queryItems = items
+        return components.url?.absoluteString ?? url.absoluteString
     }
 
     static func deleteAvatar(userId: String, useLocalStore: Bool) async {

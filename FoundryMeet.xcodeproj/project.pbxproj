@@ -88,10 +88,10 @@
 		4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchModels.swift; sourceTree = "<group>"; };
 		50B84F4B4F694E651E433F91 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5214ED58AD5A199257A859B1 /* LocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTests.swift; sourceTree = "<group>"; };
-		5ED0B4AF99C2C229EBD9E2EE /* FoundryMeetTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FoundryMeetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5ED0B4AF99C2C229EBD9E2EE /* FoundryMeetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoundryMeetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		65AD8BB63D42C2DE487CC423 /* PhotoStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStorageService.swift; sourceTree = "<group>"; };
 		65DBFEA2849FEF2171849697 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
-		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		7B58BB0100C614C917E06DFA /* LegalDocuments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalDocuments.swift; sourceTree = "<group>"; };
 		82E2366D6829AC0F89AD6D1A /* LegalDocumentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalDocumentView.swift; sourceTree = "<group>"; };
@@ -112,7 +112,7 @@
 		CBBFAEB13C765A5C27FECF8F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchHistoryView.swift; sourceTree = "<group>"; };
 		CF97FF73C70591A9DA2734C2 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
-		D3839EA29840F52AE4351179 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		D3839EA29840F52AE4351179 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D42093543269A721723F2C71 /* AppRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRepository.swift; sourceTree = "<group>"; };
 		D4E876435131E16038D1CF7E /* StartupStageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupStageTests.swift; sourceTree = "<group>"; };
 		D6BE904340E1B8B150749CB9 /* AvailabilityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvailabilityModels.swift; sourceTree = "<group>"; };
@@ -298,7 +298,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					757EFBF5C0D697D070D37345 = {
 						DevelopmentTeam = 2K4C865Z8F;
@@ -448,6 +448,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -460,6 +461,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -478,6 +480,8 @@
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FoundryMeet;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "FoundryMeet needs photo access so you can set a profile picture.";
@@ -506,6 +510,8 @@
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FoundryMeet;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "FoundryMeet needs photo access so you can set a profile picture.";
@@ -561,6 +567,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -580,6 +587,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
