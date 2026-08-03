@@ -54,6 +54,9 @@ struct UserProfile: Codable, Equatable {
     var skills: [String]
     var goal: String?
     var bio: String?
+    /// One-line product or idea — what someone is actually building.
+    var buildingIdea: String?
+    var linkedInURL: String?
     var industry: String?
     var credentials: [VerifiedCredential]
     var availability: [AvailabilityWindow]
@@ -77,6 +80,8 @@ struct UserProfile: Codable, Equatable {
         skills: [String] = [],
         goal: String? = nil,
         bio: String? = nil,
+        buildingIdea: String? = nil,
+        linkedInURL: String? = nil,
         industry: String? = nil,
         credentials: [VerifiedCredential] = [],
         availability: [AvailabilityWindow] = AvailabilityWindow.defaultWorkWeek,
@@ -99,6 +104,8 @@ struct UserProfile: Codable, Equatable {
         self.skills = skills
         self.goal = goal
         self.bio = bio
+        self.buildingIdea = buildingIdea
+        self.linkedInURL = linkedInURL
         self.industry = industry
         self.credentials = credentials
         self.availability = availability
@@ -168,9 +175,16 @@ struct DiscoveryFilters: Equatable {
     var stage: String? = nil
     var industry: String? = nil
     /// Narrow to people whose goal is the other side of your own.
-    var complementaryGoalsOnly: Bool = false
+    /// On by default — that pairing is the product.
+    var complementaryGoalsOnly: Bool = true
+    /// Same city, or within coffee-chat distance when coordinates exist.
+    var nearbyOnly: Bool = false
 
-    var isEmpty: Bool {
-        stage == nil && industry == nil && !complementaryGoalsOnly
+    static let `default` = DiscoveryFilters()
+
+    var isDefault: Bool {
+        stage == nil && industry == nil && complementaryGoalsOnly && !nearbyOnly
     }
+
+    var isEmpty: Bool { isDefault }
 }

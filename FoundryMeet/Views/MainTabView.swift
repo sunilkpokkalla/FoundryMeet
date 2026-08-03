@@ -11,6 +11,8 @@ struct MainTabView: View {
                     DiscoveryView()
                 case .hub:
                     NetworkingHubView()
+                case .messages:
+                    MessagesView(isTabRoot: true)
                 case .schedule:
                     SchedulingView()
                 case .history:
@@ -26,12 +28,13 @@ struct MainTabView: View {
 }
 
 private enum AppTab: Hashable, CaseIterable {
-    case discover, hub, schedule, history
+    case discover, hub, messages, schedule, history
 
     var title: String {
         switch self {
         case .discover: return "Discover"
         case .hub: return "Hub"
+        case .messages: return "Messages"
         case .schedule: return "Schedule"
         case .history: return "History"
         }
@@ -41,6 +44,7 @@ private enum AppTab: Hashable, CaseIterable {
         switch self {
         case .discover: return "sparkle"
         case .hub: return "globe"
+        case .messages: return "bubble.left.and.bubble.right"
         case .schedule: return "calendar"
         case .history: return "clock"
         }
@@ -65,12 +69,14 @@ private struct MainTabBar: View {
                     } label: {
                         VStack(spacing: 6) {
                             Image(systemName: tab.icon)
-                                .font(.system(size: 18, weight: selectedTab == tab ? .semibold : .regular))
+                                .font(.system(size: 17, weight: selectedTab == tab ? .semibold : .regular))
                                 .symbolRenderingMode(.monochrome)
 
                             Text(tab.title)
-                                .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .medium))
-                                .tracking(0.2)
+                                .font(.system(size: 9, weight: selectedTab == tab ? .semibold : .medium))
+                                .tracking(0.1)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
 
                             Capsule()
                                 .fill(selectedTab == tab ? AppColors.onSurface : Color.clear)
@@ -91,7 +97,7 @@ private struct MainTabBar: View {
                     .accessibilityAddTraits(selectedTab == tab ? [.isSelected] : [])
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 2)
             .background(AppColors.surfaceContainerLowest)
         }
         .background(AppColors.surfaceContainerLowest.ignoresSafeArea(edges: .bottom))

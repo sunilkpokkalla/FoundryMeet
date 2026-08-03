@@ -3,15 +3,28 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var authManager = AuthManager()
     @State private var isOnboardingCompleted = false
+    /// Cups splash only before login — never after the user is signed in.
+    @State private var didFinishBrandSplash = false
 
     var body: some View {
         Group {
-            if !authManager.isAuthenticated {
-                AuthView()
+            if !authManager.hasResolvedAuth {
+                // Waiting on Firebase — static logo, no cups motion.
+                sessionLoadingScreen(message: nil)
+            } else if !authManager.isAuthenticated {
+                if !didFinishBrandSplash {
+                    BrandSplashView {
+                        withAnimation(.easeInOut(duration: 0.35)) {
+                            didFinishBrandSplash = true
+                        }
+                    }
+                    .transition(.opacity)
+                } else {
+                    AuthView()
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             } else if !authManager.sessionReady {
-                ProgressView("Loading your network…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppColors.surface.ignoresSafeArea())
+                sessionLoadingScreen(message: "Loading your network…")
             } else if !(authManager.hasCompletedOnboarding || isOnboardingCompleted) {
                 OnboardingView(isOnboardingCompleted: Binding(
                     get: { self.isOnboardingCompleted },
@@ -26,6 +39,7 @@ struct ContentView: View {
                 MainTabView()
             }
         }
+        .animation(.easeInOut(duration: 0.35), value: didFinishBrandSplash)
         .environmentObject(authManager)
         .environmentObject(AppRepository.shared)
 #if DEBUG
@@ -36,6 +50,22 @@ struct ContentView: View {
             }
         }
 #endif
+    }
+
+    private func sessionLoadingScreen(message: String?) -> some View {
+        VStack(spacing: 16) {
+            Image("Logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 56, height: 56)
+            if let message {
+                Text(message)
+                    .font(.system(size: 14))
+                    .foregroundColor(AppColors.onSurfaceVariant)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppColors.surface.ignoresSafeArea())
     }
 }
 

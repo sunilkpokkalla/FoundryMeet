@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MatchHistoryView: View {
     @EnvironmentObject private var repository: AppRepository
+    @EnvironmentObject private var authManager: AuthManager
     @State private var showProfile = false
 
     var body: some View {
@@ -12,7 +13,8 @@ struct MatchHistoryView: View {
                 VStack(spacing: 0) {
                     AppHeader(
                         showProfile: $showProfile,
-                        profileInitials: repository.profile?.initials ?? ""
+                        profileInitials: repository.profile?.initials ?? "",
+                        profilePhotoURL: repository.profile?.photoURL
                     )
 
                     if repository.chats.isEmpty {
@@ -34,12 +36,13 @@ struct MatchHistoryView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 16) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Match History")
+                                    Text("Coffee chats")
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundColor(AppColors.onSurface)
-                                    Text("Notes and past coffee chats.")
-                                        .font(.system(size: 16))
+                                    Text("Upcoming and past meetings — open one to confirm, reschedule, or jot private notes.")
+                                        .font(.system(size: 15))
                                         .foregroundColor(AppColors.onSurfaceVariant)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                                 .padding(.horizontal, 4)
                                 .padding(.top, 8)
@@ -67,8 +70,9 @@ struct MatchHistoryView: View {
                                                     chat: chat,
                                                     userId: repository.profile?.id ?? ""
                                                 )
-                                                if !chat.notes.isEmpty {
-                                                    Text(chat.notes)
+                                                let myNotes = chat.notes(for: repository.profile?.id ?? "")
+                                                if !myNotes.isEmpty {
+                                                    Text(myNotes)
                                                         .font(.system(size: 13))
                                                         .foregroundColor(AppColors.onSurfaceVariant)
                                                         .lineLimit(1)
@@ -93,6 +97,7 @@ struct MatchHistoryView: View {
             .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
+                    .environmentObject(authManager)
             }
             .task {
                 try? await repository.refreshAll()

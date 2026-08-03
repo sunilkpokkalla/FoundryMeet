@@ -26,7 +26,8 @@ struct NetworkingHubView: View {
                 VStack(spacing: 0) {
                     AppHeader(
                         showProfile: $showProfile,
-                        profileInitials: repository.profile?.initials ?? ""
+                        profileInitials: repository.profile?.initials ?? "",
+                        profilePhotoURL: repository.profile?.photoURL
                     )
 
                     ScrollView {
@@ -118,6 +119,13 @@ struct NetworkingHubView: View {
             .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
+                    .environmentObject(authManager)
+            }
+            .task {
+                try? await repository.refreshAll()
+            }
+            .refreshable {
+                try? await repository.refreshAll()
             }
             .sheet(item: $selectedBuilder) { builder in
                 BuilderDetailView(builder: builder) { action in

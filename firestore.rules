@@ -15,12 +15,22 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
+      // Reviewer status is console/admin only — clients cannot grant it to themselves.
+      function reviewerUnchanged() {
+        return request.resource.data.get('isReviewer', false)
+          == resource.data.get('isReviewer', false);
+      }
+
       allow read: if signedIn();
-      allow create, update: if isSelf(userId);
-      allow delete: if false;
+      allow create: if isSelf(userId)
+        && request.resource.data.get('isReviewer', false) == false;
+      allow update: if isSelf(userId) && reviewerUnchanged();
+      // Required for App Store account deletion.
+      allow delete: if isSelf(userId);
 
       match /interactions/{interactionId} {
         allow read, write: if isSelf(userId);
+        allow delete: if isSelf(userId);
       }
     }
 
@@ -53,12 +63,19 @@ service cloud.firestore {
 
       allow read: if signedIn()
         && request.auth.uid in resource.data.participantIds;
-      // Only the requester opens a request, and it always starts pending.
+      // Demo partner can be created already-accepted for end-to-end testing.
+      function creatingDemoAccepted() {
+        return request.resource.data.status == 'accepted'
+          && request.resource.data.recipientId == 'demo-partner-maya';
+      }
+
+      // Only the requester opens a request, and it always starts pending
+      // (except the interactive demo partner, which auto-accepts).
       allow create: if signedIn()
         && request.auth.uid == request.resource.data.requesterId
         && request.auth.uid in request.resource.data.participantIds
         && request.resource.data.participantIds.size() == 2
-        && request.resource.data.status == 'pending';
+        && (request.resource.data.status == 'pending' || creatingDemoAccepted());
       allow update: if signedIn()
         && request.resource.data.participantIds == resource.data.participantIds
         && (answeringAsRecipient() || withdrawingAsRequester() || reopeningClosedRequest());
@@ -80,22 +97,38 @@ service cloud.firestore {
           || request.auth.uid != resource.data.get('proposedById', '');
       }
 
+      // Demo partner auto-confirms times proposed by the signed-in user.
+      function confirmingDemoChat() {
+        return request.resource.data.status == 'confirmed'
+          && resource.data.status == 'proposed'
+          && request.auth.uid == resource.data.get('proposedById', '')
+          && 'demo-partner-maya' in resource.data.participantIds;
+      }
+
       allow read: if signedIn()
         && (request.auth.uid in resource.data.participantIds
             || resource.data.userId == request.auth.uid
             || resource.data.candidateId == request.auth.uid);
       // A time can only be proposed once both people agreed to meet.
+      // Demo chats may be created already confirmed.
       allow create: if signedIn()
         && request.auth.uid in request.resource.data.participantIds
         && request.resource.data.participantIds.size() == 2
         && request.resource.data.proposedById == request.auth.uid
-        && matchIsAccepted();
+        && matchIsAccepted()
+        && (
+          request.resource.data.status == 'proposed'
+          || (
+            request.resource.data.status == 'confirmed'
+            && 'demo-partner-maya' in request.resource.data.participantIds
+          )
+        );
       // Either participant can decline, move, or cancel the chat, but the pair
       // it belongs to is fixed at creation.
       allow update: if signedIn()
         && request.auth.uid in resource.data.participantIds
         && request.resource.data.participantIds == resource.data.participantIds
-        && notSelfConfirming();
+        && (notSelfConfirming() || confirmingDemoChat());
       allow delete: if false;
     }
 
@@ -108,9 +141,16 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if signedIn()
           && request.auth.uid in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds;
+        // Demo partner replies are written by the signed-in tester on Maya's behalf.
         allow create: if signedIn()
-          && request.auth.uid == request.resource.data.senderId
-          && request.auth.uid in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds;
+          && request.auth.uid in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds
+          && (
+            request.auth.uid == request.resource.data.senderId
+            || (
+              request.resource.data.senderId == 'demo-partner-maya'
+              && 'demo-partner-maya' in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds
+            )
+          );
         allow update, delete: if false;
       }
     }

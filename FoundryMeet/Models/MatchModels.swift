@@ -120,7 +120,10 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var timeLabel: String
     var setting: String
     var talkingPoints: String
+    /// Legacy shared notes field — prefer `privateNotes`.
     var notes: String
+    /// Per-participant private notes. Only the owner should read/write their entry.
+    var privateNotes: [String: String] = [:]
     var status: String
     /// Who put the current time on the table. Changes on every reschedule.
     var proposedById: String
@@ -132,8 +135,26 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var calendarEventId: String?
     /// none | local | synced | failed
     var inviteStatus: String
+    /// Per-participant post-chat outcome: useful | not_a_fit | no_show
+    var outcomes: [String: String]
     var createdAt: Date
     var updatedAt: Date
+
+    enum MeetingOutcome: String, CaseIterable, Identifiable {
+        case useful = "useful"
+        case notAFit = "not_a_fit"
+        case noShow = "no_show"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .useful: return "Useful"
+            case .notAFit: return "Not a fit"
+            case .noShow: return "No-show"
+            }
+        }
+    }
 
     var metOnLabel: String {
         let formatter = DateFormatter()
@@ -181,6 +202,21 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
         }
         return organizerName.isEmpty ? "Founder" : organizerName
     }
+
+    func outcome(for userId: String) -> MeetingOutcome? {
+        outcomes[userId].flatMap(MeetingOutcome.init(rawValue:))
+    }
+
+    /// Private notes for this user. Falls back to legacy shared `notes` only when
+    /// no per-user entry exists yet (migration path).
+    func notes(for userId: String) -> String {
+        if let mine = privateNotes[userId] { return mine }
+        return notes
+    }
+
+    var needsOutcome: Bool {
+        isConfirmed && isPast
+    }
 }
 
 struct DiscoveryCandidate: Identifiable, Equatable {
@@ -193,6 +229,11 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     let industry: String
     var stages: [String] = []
     var goal: String? = nil
+    var location: String? = nil
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+    var buildingIdea: String? = nil
+    var linkedInURL: String? = nil
     var credentials: [VerifiedCredential] = []
     /// Sample profile with no account behind it, so it cannot receive a request.
     var isSeed: Bool = false
@@ -230,6 +271,11 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         industry: String,
         stages: [String] = [],
         goal: String? = nil,
+        location: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        buildingIdea: String? = nil,
+        linkedInURL: String? = nil,
         credentials: [VerifiedCredential] = [],
         isSeed: Bool = false
     ) {
@@ -242,25 +288,98 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         self.industry = industry
         self.stages = stages
         self.goal = goal
+        self.location = location
+        self.latitude = latitude
+        self.longitude = longitude
+        self.buildingIdea = buildingIdea
+        self.linkedInURL = linkedInURL
         self.credentials = credentials
         self.isSeed = isSeed
     }
 
     init(profile: UserProfile) {
+        let idea = profile.buildingIdea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let blurb: String
+        if let idea, !idea.isEmpty {
+            blurb = idea
+        } else if let bio = profile.bio, !bio.isEmpty {
+            blurb = bio
+        } else if let goal = profile.goal {
+            blurb = "Looking for: \(goal)"
+        } else {
+            blurb = "Open to high-signal coffee chats."
+        }
         self.init(
             id: profile.id,
             name: profile.displayName.isEmpty ? "Founder" : profile.displayName,
             role: profile.role ?? "Founder",
             imgUrl: profile.photoURL ?? "",
-            desc: profile.bio?.isEmpty == false
-                ? profile.bio!
-                : (profile.goal.map { "Looking for: \($0)" } ?? "Open to high-signal coffee chats."),
+            desc: blurb,
             tags: profile.skills,
             industry: profile.industry ?? "Startup",
             stages: profile.stages,
             goal: profile.goal,
+            location: profile.location,
+            latitude: profile.latitude,
+            longitude: profile.longitude,
+            buildingIdea: idea?.isEmpty == false ? idea : nil,
+            linkedInURL: profile.linkedInURL,
             credentials: profile.credentials
         )
+    }
+}
+
+/// Interactive sample partner for end-to-end testing. Auto-accepts, replies in
+/// chat, and confirms coffee times — there is no real person behind the id.
+enum DemoPartner {
+    static let id = "demo-partner-maya"
+    static let name = "Maya Okonkwo"
+    static let role = "Advisor"
+
+    static func isDemo(_ candidateId: String) -> Bool {
+        candidateId == id
+    }
+
+    /// Shaped to complement the signed-in user so filters still surface them.
+    static func candidate(for me: UserProfile?) -> DiscoveryCandidate {
+        let myGoal = me?.goal.flatMap(NetworkingGoal.init(rawValue:))
+        let theirGoal = myGoal?.counterparts.first ?? .adviseAndMentor
+        let city = me?.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let location = (city?.isEmpty == false && city?.lowercased() != "remote")
+            ? city!
+            : "Austin, TX"
+
+        return DiscoveryCandidate(
+            id: id,
+            name: name,
+            role: "\(role) · Early-stage GTM",
+            imgUrl: "https://i.pravatar.cc/600?u=foundrymeet-maya-okonkwo",
+            desc: "Happy to grab coffee and pressure-test positioning, first hires, and how you talk about the problem. This is a sample profile for testing FoundryMeet.",
+            tags: ["Go-to-Market", "Fundraising", "Hiring"],
+            industry: Industry.ai.rawValue,
+            stages: [StartupStage.seed.rawValue, StartupStage.seriesA.rawValue],
+            goal: theirGoal.rawValue,
+            location: location,
+            latitude: me?.latitude ?? 30.2672,
+            longitude: me?.longitude ?? -97.7431,
+            buildingIdea: "Advising seed teams on GTM and fundraising narrative",
+            linkedInURL: "https://www.linkedin.com/",
+            isSeed: true
+        )
+    }
+
+    static let welcomeMessage =
+        "Hey — Maya here (sample partner). Request accepted. Pick a coffee time in Schedule, or message me here to try chat."
+
+    static func autoReply(to text: String) -> String {
+        let lower = text.lowercased()
+        if lower.contains("time") || lower.contains("coffee") || lower.contains("meet") {
+            return "Sounds good. Propose a slot in Schedule and I’ll confirm it automatically so you can finish the flow."
+        }
+        if lower.contains("hi") || lower.contains("hello") || lower.contains("hey") {
+            return "Hey! I’m a sample partner — ask anything about the coffee-chat flow and I’ll reply here."
+        }
+        return "Got it. I’m a demo partner, so you’ll get this auto-reply. Try proposing a coffee time next."
     }
 }
 

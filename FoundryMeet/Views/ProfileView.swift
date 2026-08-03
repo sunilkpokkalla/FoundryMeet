@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
+@MainActor
 struct ProfileView: View {
     @EnvironmentObject private var authManager: AuthManager
     @ObservedObject private var repository = AppRepository.shared
@@ -15,6 +16,8 @@ struct ProfileView: View {
     @State private var goal: NetworkingGoal?
     @State private var industry: Industry?
     @State private var bio = ""
+    @State private var buildingIdea = ""
+    @State private var linkedInURL = ""
     @State private var skills: Set<Skill> = []
     /// Stored values with no chip to represent them. Carried through a save so
     /// editing an unrelated field cannot quietly delete them.
@@ -22,10 +25,12 @@ struct ProfileView: View {
     @State private var unrecognizedStages: [String] = []
     @State private var isDiscoverable = true
     @State private var statusMessage = ""
-    @State private var showMessages = false
     @State private var showAddCredential = false
     @State private var showAvailability = false
     @State private var showReviewQueue = false
+    @State private var legalDocument: LegalDocument?
+    @State private var showDeleteConfirm = false
+    @State private var isDeletingAccount = false
     @State private var credTitle = ""
     @State private var credIssuer = ""
     @State private var credURL = ""
@@ -72,9 +77,6 @@ struct ProfileView: View {
                 }
             }
             .hideSystemNavBar()
-            .sheet(isPresented: $showMessages) {
-                MessagesView()
-            }
             .sheet(isPresented: $showAvailability) {
                 AvailabilityEditorView()
                     .environmentObject(repository)
@@ -83,26 +85,58 @@ struct ProfileView: View {
                 CredentialReviewQueueView()
                     .environmentObject(repository)
             }
-            .alert("Add credential", isPresented: $showAddCredential) {
-                TextField("Title", text: $credTitle)
-                TextField("Issuer", text: $credIssuer)
-                TextField("URL", text: $credURL)
-                Button("Cancel", role: .cancel) {}
-                Button("Add") {
-                    Task {
-                        try? await repository.addCredential(
-                            title: credTitle,
-                            issuer: credIssuer,
-                            url: credURL
+            .sheet(item: $legalDocument) { document in
+                LegalDocumentView(document: document)
+            }
+            .sheet(isPresented: $showDeleteConfirm) {
+                AppConfirmSheet(
+                    title: "Delete account?",
+                    message: "This permanently removes your FoundryMeet account and profile data. Your Apple or Google account stays intact. You may need to sign in again first if they ask for a recent login.",
+                    cancelTitle: "Keep account",
+                    confirmTitle: "Delete account",
+                    isDestructive: true,
+                    onCancel: {},
+                    onConfirm: {
+                        Task { await deleteAccount() }
+                    }
+                )
+            }
+            .sheet(isPresented: $showAddCredential) {
+                AppFormSheet(
+                    title: "Add credential",
+                    message: "Links stay pending until a reviewer verifies them.",
+                    fields: [
+                        AppFormField(label: "Title", placeholder: "e.g. B.S. Computer Science", text: $credTitle),
+                        AppFormField(label: "Issuer", placeholder: "e.g. Stanford", text: $credIssuer),
+                        AppFormField(
+                            label: "URL",
+                            placeholder: "https://…",
+                            text: $credURL,
+                            keyboard: .URL,
+                            autocapitalize: false
                         )
+                    ],
+                    cancelTitle: "Cancel",
+                    confirmTitle: "Submit",
+                    onCancel: {
                         credTitle = ""
                         credIssuer = ""
                         credURL = ""
-                        statusMessage = "Credential submitted for review."
+                    },
+                    onConfirm: {
+                        Task {
+                            try? await repository.addCredential(
+                                title: credTitle,
+                                issuer: credIssuer,
+                                url: credURL
+                            )
+                            credTitle = ""
+                            credIssuer = ""
+                            credURL = ""
+                            statusMessage = "Credential submitted for review."
+                        }
                     }
-                }
-            } message: {
-                Text("Links are marked pending until a reviewer verifies them.")
+                )
             }
             .onChange(of: photoItem) { item in
                 guard let item else { return }
@@ -112,45 +146,46 @@ struct ProfileView: View {
     }
 
     private var accountHeader: some View {
-        HStack {
+        HStack(spacing: 12) {
             Button {
                 if isEditing {
                     isEditing = false
                 } else {
-                    loadDraft()
-                    isEditing = true
+                    dismiss()
                 }
             } label: {
-                Text(isEditing ? "Cancel" : "Edit")
-                    .font(.system(size: 15, weight: .medium))
+                Image(systemName: isEditing ? "xmark" : "chevron.down")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppColors.onSurface)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(AppColors.surfaceContainerLowest))
+                    .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isEditing ? "Cancel editing" : "Close account")
 
-            Spacer()
-
-            Text("Account")
+            Text(isEditing ? "Edit profile" : "Account")
                 .font(.system(size: 17, weight: .semibold))
                 .tracking(-0.3)
                 .foregroundColor(AppColors.onSurface)
 
             Spacer()
 
-            Button {
-                if isEditing {
+            if isEditing {
+                Button("Save") {
                     saveProfile()
-                } else {
-                    dismiss()
                 }
-            } label: {
-                Text(isEditing ? "Save" : "Done")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(AppColors.onSurface)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(AppColors.onPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(AppColors.primary)
+                .clipShape(Capsule())
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 14)
+        .padding(.top, 12)
         .padding(.bottom, 12)
         .background(AppColors.surface)
         .overlay(alignment: .bottom) {
@@ -189,7 +224,7 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(repository.profile?.displayName ?? authManager.displayName)
                     .font(.system(size: 22, weight: .semibold))
                     .tracking(-0.4)
@@ -197,14 +232,30 @@ struct ProfileView: View {
                 Text(authManager.email)
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.onSurfaceVariant)
-                Text("Tap photo to update")
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.secondary)
                 if let role = repository.profile?.role, !role.isEmpty {
                     Text(role)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.secondary)
-                        .padding(.top, 2)
+                }
+                if !isEditing {
+                    Button {
+                        loadDraft()
+                        isEditing = true
+                    } label: {
+                        Text("Edit profile")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppColors.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(AppColors.accentSoft.opacity(0.65))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                } else {
+                    Text("Tap photo to update")
+                        .font(.system(size: 12))
+                        .foregroundColor(AppColors.secondary)
                 }
             }
 
@@ -316,6 +367,19 @@ struct ProfileView: View {
                 .padding(.vertical, 12)
                 divider
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("What I'm building")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    TextField("One line on your product or idea", text: $buildingIdea, axis: .vertical)
+                        .lineLimit(2...4)
+                        .font(.system(size: 16))
+                        .foregroundColor(AppColors.onSurface)
+                }
+                .padding(.vertical, 14)
+                divider
+                editField("LinkedIn", text: $linkedInURL, placeholder: "https://linkedin.com/in/…")
+                divider
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Bio")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.onSurfaceVariant)
@@ -360,6 +424,24 @@ struct ProfileView: View {
                 detailRow("Industry", profile.industry ?? "—")
                 divider
                 detailRow("Skills", profile.skills.isEmpty ? "—" : profile.skills.joined(separator: ", "))
+                if let idea = profile.buildingIdea, !idea.isEmpty {
+                    divider
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Building")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                        Text(idea)
+                            .font(.system(size: 15))
+                            .foregroundColor(AppColors.onSurface)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 14)
+                }
+                if let linkedIn = profile.linkedInURL, !linkedIn.isEmpty {
+                    divider
+                    detailRow("LinkedIn", linkedIn)
+                }
                 if let bio = profile.bio, !bio.isEmpty {
                     divider
                     VStack(alignment: .leading, spacing: 6) {
@@ -486,9 +568,6 @@ struct ProfileView: View {
             actionRow(title: "Availability", icon: "calendar") {
                 showAvailability = true
             }
-            actionRow(title: "Messages", icon: "bubble.left.and.bubble.right") {
-                showMessages = true
-            }
 
             if repository.profile?.isReviewer == true {
                 actionRow(title: "Credential review queue", icon: "checkmark.seal") {
@@ -496,24 +575,13 @@ struct ProfileView: View {
                 }
             }
 
-#if DEBUG
-            actionRow(title: "Enable reviewer (debug)", icon: "person.badge.shield.checkmark") {
-                Task {
-                    guard var profile = repository.profile else { return }
-                    profile.isReviewer = true
-                    try? await repository.updateProfile(profile)
-                    statusMessage = "Reviewer mode enabled."
-                }
-            }
-#endif
-
             Button {
                 authManager.signOut()
                 dismiss()
             } label: {
                 Text("Sign Out")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Color(hex: 0xB42318))
+                    .foregroundColor(AppColors.onSurface)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background(AppColors.surfaceContainerLowest)
@@ -524,6 +592,50 @@ struct ProfileView: View {
                     )
             }
             .buttonStyle(.plain)
+
+            Button {
+                showDeleteConfirm = true
+            } label: {
+                HStack {
+                    if isDeletingAccount {
+                        ProgressView()
+                    } else {
+                        Text("Delete Account")
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                }
+                .foregroundColor(Color(hex: 0xB42318))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(AppColors.surfaceContainerLowest)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(hex: 0xB42318).opacity(0.25), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isDeletingAccount)
+
+            // Quiet footer — App Review needs these reachable; History is the wrong home.
+            VStack(spacing: 10) {
+                Text("Legal & support")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(AppColors.onSurfaceVariant.opacity(0.8))
+
+                HStack(spacing: 14) {
+                    Button("Privacy") { legalDocument = .privacy }
+                    Text("·").foregroundColor(AppColors.onSurfaceVariant.opacity(0.5))
+                    Button("Terms") { legalDocument = .terms }
+                    Text("·").foregroundColor(AppColors.onSurfaceVariant.opacity(0.5))
+                    Button("Support") { legalDocument = .support }
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(AppColors.onSurfaceVariant)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)
@@ -583,6 +695,18 @@ struct ProfileView: View {
         .padding(.vertical, 14)
     }
 
+    private static func normalizedLinkedInURL(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://") {
+            return trimmed
+        }
+        if trimmed.lowercased().contains("linkedin.com") {
+            return "https://\(trimmed)"
+        }
+        return "https://www.linkedin.com/in/\(trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/")))"
+    }
+
     private func editField(_ title: String, text: Binding<String>, placeholder: String = "") -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
@@ -623,6 +747,8 @@ struct ProfileView: View {
         goal = profile.goal.flatMap(NetworkingGoal.init(rawValue:))
         industry = profile.industry.flatMap(Industry.init(rawValue:))
         bio = profile.bio ?? ""
+        buildingIdea = profile.buildingIdea ?? ""
+        linkedInURL = profile.linkedInURL ?? ""
         skills = Set(profile.skills.compactMap(Skill.parse))
         unrecognizedSkills = profile.skills.filter { Skill.parse($0) == nil }
         isDiscoverable = profile.isDiscoverable
@@ -652,6 +778,10 @@ struct ProfileView: View {
         profile.goal = goal?.rawValue
         profile.industry = industry?.rawValue
         profile.bio = bio.isEmpty ? nil : bio
+        let idea = buildingIdea.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.buildingIdea = idea.isEmpty ? nil : idea
+        let linkedIn = Self.normalizedLinkedInURL(linkedInURL)
+        profile.linkedInURL = linkedIn
         profile.skills = Skill.allCases.filter(skills.contains).map(\.rawValue) + unrecognizedSkills
         profile.isDiscoverable = isDiscoverable
         Task {
@@ -662,6 +792,18 @@ struct ProfileView: View {
             } catch {
                 statusMessage = error.localizedDescription
             }
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        statusMessage = ""
+        defer { isDeletingAccount = false }
+        do {
+            try await authManager.deleteAccount()
+            dismiss()
+        } catch {
+            statusMessage = error.localizedDescription
         }
     }
 }

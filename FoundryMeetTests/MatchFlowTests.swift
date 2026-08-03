@@ -81,6 +81,7 @@ final class CoffeeChatStateTests: XCTestCase {
             setting: "Virtual",
             talkingPoints: "",
             notes: "",
+            privateNotes: [:],
             status: status,
             proposedById: proposedBy,
             respondedAt: nil,
@@ -90,6 +91,7 @@ final class CoffeeChatStateTests: XCTestCase {
             endsAt: startsAt?.addingTimeInterval(45 * 60),
             calendarEventId: nil,
             inviteStatus: "none",
+            outcomes: [:],
             createdAt: Date(),
             updatedAt: Date()
         )

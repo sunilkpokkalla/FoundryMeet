@@ -23,6 +23,8 @@ class AuthManager: ObservableObject {
     @Published var currentUser: User? = nil
     @Published private(set) var isDevSession: Bool = false
     @Published private(set) var sessionReady: Bool = false
+    /// True after Firebase Auth reports the first session state (signed in or out).
+    @Published private(set) var hasResolvedAuth: Bool = false
     @Published var hasCompletedOnboarding: Bool = false
 
     private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
@@ -54,6 +56,7 @@ class AuthManager: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.currentUser = user
+                self.hasResolvedAuth = true
                 if self.isDevSession { return }
                 if let user {
                     await self.bootstrapSession(
@@ -108,6 +111,45 @@ class AuthManager: ObservableObject {
         } catch let signOutError as NSError {
             print("Error signing out: %@", signOutError)
         }
+    }
+
+    /// Removes profile data, then the Firebase Auth user. Apple requires this
+    /// path because the app supports account creation.
+    func deleteAccount() async throws {
+#if DEBUG
+        if isDevSession {
+            try await repository.deleteAccountData()
+            isDevSession = false
+            isAuthenticated = false
+            sessionReady = false
+            hasCompletedOnboarding = false
+            repository.clearSession()
+            return
+        }
+#endif
+        guard let user = Auth.auth().currentUser else {
+            throw RepositoryError.notSignedIn
+        }
+        // Require a recent login before wiping data — otherwise a failed Auth
+        // delete would leave the user with no profile and no way back.
+        if let lastSignIn = user.metadata.lastSignInDate,
+           Date().timeIntervalSince(lastSignIn) > 5 * 60 {
+            throw RepositoryError.reauthenticationRequired
+        }
+        try await repository.deleteAccountData()
+        do {
+            try await user.delete()
+        } catch {
+            let ns = error as NSError
+            if ns.code == AuthErrorCode.requiresRecentLogin.rawValue {
+                throw RepositoryError.reauthenticationRequired
+            }
+            throw error
+        }
+        isAuthenticated = false
+        sessionReady = false
+        hasCompletedOnboarding = false
+        repository.clearSession()
     }
 
     func markOnboardingComplete() {

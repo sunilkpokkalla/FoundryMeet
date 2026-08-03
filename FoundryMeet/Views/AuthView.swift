@@ -16,6 +16,7 @@ struct AuthView: View {
     @State private var infoMessage = ""
     @State private var isLoading = false
     @State private var currentNonce: String?
+    @State private var legalDocument: LegalDocument?
     @StateObject private var appleCoordinator = AppleSignInCoordinator()
 
     var body: some View {
@@ -154,12 +155,34 @@ struct AuthView: View {
                         .disabled(isLoading)
                     }
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 40)
+
+                    legalFooter
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 40)
                 }
             }
         }
+        .sheet(item: $legalDocument) { document in
+            LegalDocumentView(document: document)
+        }
         .onAppear {
             appleCoordinator.onError = { errorMessage = $0 }
+        }
+    }
+
+    private var legalFooter: some View {
+        VStack(spacing: 10) {
+            Text("By continuing, you agree to FoundryMeet’s Terms of Use and acknowledge the Privacy Policy.")
+                .font(.system(size: 12))
+                .foregroundColor(AppColors.onSurfaceVariant)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 16) {
+                Button("Privacy Policy") { legalDocument = .privacy }
+                Button("Terms of Use") { legalDocument = .terms }
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(AppColors.secondary)
         }
     }
 

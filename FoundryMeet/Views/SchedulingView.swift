@@ -38,7 +38,8 @@ struct SchedulingView: View {
                 VStack(spacing: 0) {
                     AppHeader(
                         showProfile: $showProfile,
-                        profileInitials: repository.profile?.initials ?? ""
+                        profileInitials: repository.profile?.initials ?? "",
+                        profilePhotoURL: repository.profile?.photoURL
                     )
 
                     ScrollView {
@@ -71,6 +72,7 @@ struct SchedulingView: View {
             .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
+                    .environmentObject(authManager)
             }
             .sheet(item: $matchToSchedule) { match in
                 ProposeTimeSheet(match: match) { message in
@@ -93,21 +95,37 @@ struct SchedulingView: View {
                     statusMessage = "New time sent to \(chat.otherPartyName(for: myId))."
                 }
             }
-            .alert("Cancel this chat?", isPresented: Binding(
+            .sheet(isPresented: Binding(
                 get: { chatToCancel != nil },
                 set: { if !$0 { chatToCancel = nil; cancellationReason = "" } }
             )) {
-                TextField("Reason (optional)", text: $cancellationReason)
-                Button("Keep it", role: .cancel) {}
-                Button("Cancel chat", role: .destructive) {
-                    if let chat = chatToCancel {
-                        perform("Chat cancelled.") {
-                            try await repository.cancelChat(chat, reason: cancellationReason)
+                AppFormSheet(
+                    title: "Cancel this coffee chat?",
+                    message: "Both of you lose the calendar entry and the reminder.",
+                    fields: [
+                        AppFormField(
+                            label: "Reason (optional)",
+                            placeholder: "e.g. Schedule conflict",
+                            text: $cancellationReason
+                        )
+                    ],
+                    cancelTitle: "Keep chat",
+                    confirmTitle: "Cancel chat",
+                    isDestructive: true,
+                    onCancel: {
+                        chatToCancel = nil
+                        cancellationReason = ""
+                    },
+                    onConfirm: {
+                        if let chat = chatToCancel {
+                            perform("Chat cancelled.") {
+                                try await repository.cancelChat(chat, reason: cancellationReason)
+                            }
                         }
+                        chatToCancel = nil
+                        cancellationReason = ""
                     }
-                }
-            } message: {
-                Text("Both of you lose the calendar entry and the reminder.")
+                )
             }
             .task {
                 try? await repository.refreshAll()

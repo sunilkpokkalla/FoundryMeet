@@ -31,6 +31,8 @@ final class AppRepository: ObservableObject {
     private var userId: String?
     private(set) var usesLocalStore = false
     private var excludedCandidateIds: Set<String> = []
+    private var listeners: [ListenerRegistration] = []
+    private var messageListeners: [String: ListenerRegistration] = [:]
 
     private init() {}
 
@@ -100,12 +102,14 @@ final class AppRepository: ObservableObject {
                 profile = created
             }
             try await refreshAll()
+            startRealtimeSync()
         } catch {
             lastError = error.localizedDescription
         }
     }
 
     func clearSession() {
+        stopRealtimeSync()
         userId = nil
         profile = nil
         matchRequests = []
@@ -116,6 +120,140 @@ final class AppRepository: ObservableObject {
         filters = DiscoveryFilters()
         excludedCandidateIds = []
         lastError = nil
+    }
+
+    /// Keeps matches / chats / threads live so the other person's accept shows
+    /// without manually switching tabs.
+    func startRealtimeSync() {
+        stopRealtimeSync()
+        guard let userId, !usesLocalStore else { return }
+
+        listeners.append(
+            db.collection("matches")
+                .whereField("participantIds", arrayContains: userId)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.matchRequests = (snapshot?.documents ?? [])
+                            .compactMap { MatchRequest(id: $0.documentID, firestoreData: $0.data()) }
+                            .sorted { $0.updatedAt > $1.updatedAt }
+                        let interactions = (try? await self.loadInteractions(userId: userId)) ?? []
+                        self.excludedCandidateIds = Set(interactions.map(\.candidateId))
+                            .union(self.matchRequests.filter { !$0.isDeclined }.map { $0.otherPartyId(for: userId) })
+                        await self.rebuildDiscoveryFeed()
+                    }
+                }
+        )
+
+        listeners.append(
+            db.collection("chats")
+                .whereField("participantIds", arrayContains: userId)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.chats = (snapshot?.documents ?? [])
+                            .compactMap { CoffeeChat(id: $0.documentID, firestoreData: $0.data()) }
+                            .sorted { ($0.startsAt ?? $0.createdAt) > ($1.startsAt ?? $1.createdAt) }
+                        await self.syncCalendarState()
+                    }
+                }
+        )
+
+        listeners.append(
+            db.collection("threads")
+                .whereField("participantIds", arrayContains: userId)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.threads = (snapshot?.documents ?? [])
+                            .compactMap { MessageThread(id: $0.documentID, firestoreData: $0.data()) }
+                            .sorted { $0.updatedAt > $1.updatedAt }
+                    }
+                }
+        )
+    }
+
+    func stopRealtimeSync() {
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
+        messageListeners.values.forEach { $0.remove() }
+        messageListeners.removeAll()
+    }
+
+    /// Live updates while a conversation is open.
+    func observeMessages(
+        threadId: String,
+        onChange: @escaping @MainActor ([ChatMessage]) -> Void
+    ) {
+        messageListeners[threadId]?.remove()
+        messageListeners[threadId] = nil
+
+        if usesLocalStore {
+            Task {
+                let messages = (try? await loadMessages(threadId: threadId)) ?? []
+                onChange(messages)
+            }
+            return
+        }
+
+        messageListeners[threadId] = db.collection("threads").document(threadId)
+            .collection("messages")
+            .order(by: "createdAt", descending: false)
+            .addSnapshotListener { snapshot, _ in
+                let messages = (snapshot?.documents ?? [])
+                    .compactMap { ChatMessage(id: $0.documentID, firestoreData: $0.data()) }
+                Task { @MainActor in
+                    onChange(messages)
+                }
+            }
+    }
+
+    func stopObservingMessages(threadId: String) {
+        messageListeners[threadId]?.remove()
+        messageListeners[threadId] = nil
+    }
+
+    /// Wipes this user's stored profile data before Auth deletion. Shared chats
+    /// with other people are left for the other participant's history.
+    func deleteAccountData() async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+
+        stopRealtimeSync()
+        await PhotoStorageService.deleteAvatar(userId: userId, useLocalStore: usesLocalStore)
+
+        if usesLocalStore {
+            let profileURL = try? localURL(key: "profile_\(userId)")
+            if let profileURL { try? FileManager.default.removeItem(at: profileURL) }
+            let interactionsURL = try? localURL(key: "interactions_\(userId)")
+            if let interactionsURL { try? FileManager.default.removeItem(at: interactionsURL) }
+            var network = (try? readLocal(key: "network_directory", as: [UserProfile].self)) ?? []
+            network.removeAll { $0.id == userId }
+            try? writeLocal(network, key: "network_directory")
+            UserDefaults.standard.removeObject(forKey: onboardingKey(for: userId))
+            return
+        }
+
+        // Leave the network immediately, then remove personal data.
+        if var current = profile {
+            current.isDiscoverable = false
+            current.displayName = "Deleted user"
+            current.bio = nil
+            current.buildingIdea = nil
+            current.linkedInURL = nil
+            current.photoURL = nil
+            current.fcmTokens = []
+            current.email = ""
+            try? await saveProfile(current)
+        }
+
+        let interactions = try await db.collection("users").document(userId)
+            .collection("interactions")
+            .getDocuments()
+        for doc in interactions.documents {
+            try await doc.reference.delete()
+        }
+        try await db.collection("users").document(userId).delete()
+        UserDefaults.standard.removeObject(forKey: onboardingKey(for: userId))
     }
 
     func saveOnboarding(
@@ -150,7 +288,13 @@ final class AppRepository: ObservableObject {
         next.updatedAt = Date()
         try await saveProfile(next)
         profile = next
-        try await refreshAll()
+        // A failed feed refresh must not look like the save itself failed —
+        // availability and profile edits already landed.
+        do {
+            try await refreshAll()
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     func addCredential(title: String, issuer: String, url: String) async throws {
@@ -325,11 +469,24 @@ final class AppRepository: ObservableObject {
             endsAt: endsAt,
             calendarEventId: nil,
             inviteStatus: "none",
+            outcomes: [:],
             createdAt: Date(),
             updatedAt: Date()
         )
         try await saveChat(chat)
         upsertChat(chat)
+
+        // Demo partner confirms immediately so calendar + outcome flows are testable.
+        if DemoPartner.isDemo(otherId) {
+            var confirmed = chat
+            confirmed.status = CoffeeChat.Status.confirmed.rawValue
+            confirmed.respondedAt = Date()
+            confirmed.updatedAt = Date()
+            try await saveChat(confirmed)
+            upsertChat(confirmed)
+            await syncCalendarState()
+            return confirmed
+        }
 
         try await enqueuePush(
             recipientIds: [otherId],
@@ -589,6 +746,10 @@ final class AppRepository: ObservableObject {
         chats = try await chatsTask
         networkProfiles = try await networkTask
         threads = try await threadsTask
+        // Keep live sync attached after every refresh (covers first launch races).
+        if listeners.isEmpty {
+            startRealtimeSync()
+        }
         excludedCandidateIds = Set(interactions.map(\.candidateId))
             .union(matchRequests.filter { !$0.isDeclined }.map { $0.otherPartyId(for: userId) })
         await rebuildDiscoveryFeed()
@@ -620,18 +781,61 @@ final class AppRepository: ObservableObject {
         // Without a goal of your own there is nothing to complement, so the
         // filter becomes a no-op rather than blanking the feed.
         let myGoal = profile?.goal.flatMap(NetworkingGoal.init(rawValue:))?.rawValue
+        let myLocation = profile?.location
+        let myLat = profile?.latitude
+        let myLon = profile?.longitude
+
         if filters.complementaryGoalsOnly, myGoal != nil {
             candidates = candidates.filter { NetworkingGoal.areComplementary(myGoal, $0.goal) }
         }
-        // People who want the other side of what you want come first, whether or
-        // not the filter is on.
-        discoveryFeed = candidates.enumerated()
+        if filters.nearbyOnly {
+            candidates = candidates.filter {
+                GeoDistance.isNearby(
+                    myLocation: myLocation,
+                    myLatitude: myLat,
+                    myLongitude: myLon,
+                    theirLocation: $0.location,
+                    theirLatitude: $0.latitude,
+                    theirLongitude: $0.longitude
+                )
+            }
+        }
+
+        // Complementary goals first, then closer people, then original order.
+        var ranked = candidates.enumerated()
             .sorted { lhs, rhs in
                 let lhsFits = NetworkingGoal.areComplementary(myGoal, lhs.element.goal)
                 let rhsFits = NetworkingGoal.areComplementary(myGoal, rhs.element.goal)
-                return lhsFits == rhsFits ? lhs.offset < rhs.offset : lhsFits
+                if lhsFits != rhsFits { return lhsFits }
+
+                let lhsDistance = GeoDistance.sortKeyKilometers(
+                    myLatitude: myLat,
+                    myLongitude: myLon,
+                    theirLatitude: lhs.element.latitude,
+                    theirLongitude: lhs.element.longitude,
+                    myLocation: myLocation,
+                    theirLocation: lhs.element.location
+                )
+                let rhsDistance = GeoDistance.sortKeyKilometers(
+                    myLatitude: myLat,
+                    myLongitude: myLon,
+                    theirLatitude: rhs.element.latitude,
+                    theirLongitude: rhs.element.longitude,
+                    myLocation: myLocation,
+                    theirLocation: rhs.element.location
+                )
+                if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+                return lhs.offset < rhs.offset
             }
             .map(\.element)
+
+        // Pin the interactive demo partner so testers can always run the full loop.
+        let demo = DemoPartner.candidate(for: profile)
+        if !excludedCandidateIds.contains(demo.id) {
+            ranked.removeAll { $0.id == demo.id }
+            ranked.insert(demo, at: 0)
+        }
+        discoveryFeed = ranked
     }
 
     func dismissCandidate(_ candidate: DiscoveryCandidate) async throws {
@@ -652,6 +856,10 @@ final class AppRepository: ObservableObject {
     func requestMatch(with candidate: DiscoveryCandidate, note: String = "") async throws {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
         guard candidate.id != userId else { throw RepositoryError.invalidInput }
+        if DemoPartner.isDemo(candidate.id) {
+            try await connectWithDemoPartner(candidate, note: note)
+            return
+        }
         guard !candidate.isSeed || usesLocalStore else { throw RepositoryError.sampleProfile }
 
         if let existing = matchRequests.first(where: { $0.id == MatchRequest.pairId(userId, candidate.id) }) {
@@ -690,6 +898,57 @@ final class AppRepository: ObservableObject {
             title: "New coffee chat request",
             body: "\(request.requesterName) would like to grab coffee."
         )
+    }
+
+    /// Demo partner auto-accepts, opens chat, and drops a welcome message so the
+    /// full coffee-chat loop can be tested without a second device.
+    private func connectWithDemoPartner(_ candidate: DiscoveryCandidate, note: String) async throws {
+        guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
+
+        if let existing = matchRequests.first(where: { $0.id == MatchRequest.pairId(userId, candidate.id) }),
+           existing.isAccepted {
+            throw RepositoryError.duplicateRequest
+        }
+
+        let request = MatchRequest(
+            requesterId: userId,
+            requesterName: me.displayName.isEmpty ? "Founder" : me.displayName,
+            requesterRole: me.role ?? "Founder",
+            recipientId: candidate.id,
+            recipientName: candidate.name,
+            recipientRole: candidate.role,
+            status: .accepted,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        try await saveMatchRequest(request)
+        upsertMatchRequest(request)
+
+        try await recordInteraction(
+            candidateId: candidate.id,
+            candidateName: candidate.name,
+            candidateRole: candidate.role,
+            action: .connected
+        )
+        excludedCandidateIds.insert(candidate.id)
+        discoveryFeed.removeAll { $0.id == candidate.id }
+
+        let thread = try await openOrCreateThread(with: candidate)
+        let welcome = ChatMessage(
+            id: UUID().uuidString,
+            threadId: thread.id,
+            senderId: DemoPartner.id,
+            text: DemoPartner.welcomeMessage,
+            createdAt: Date()
+        )
+        try await saveMessage(welcome)
+        if var updated = threads.first(where: { $0.id == thread.id }) {
+            updated.lastMessage = welcome.text
+            updated.updatedAt = Date()
+            try await saveThread(updated)
+            if let index = threads.firstIndex(where: { $0.id == updated.id }) {
+                threads[index] = updated
+            }
+        }
     }
 
     /// Accepts or declines a request addressed to me.
@@ -740,15 +999,30 @@ final class AppRepository: ObservableObject {
     }
 
     func updateChatNotes(chatId: String, notes: String) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
         guard var chat = chats.first(where: { $0.id == chatId }) else {
             throw RepositoryError.notFound
         }
-        chat.notes = notes
+        guard chat.participantIds.contains(userId) else { throw RepositoryError.notAllowed }
+        chat.privateNotes[userId] = notes
+        // Clear legacy shared notes once per-user storage is in use.
+        chat.notes = ""
         chat.updatedAt = Date()
         try await saveChat(chat)
-        if let index = chats.firstIndex(where: { $0.id == chatId }) {
-            chats[index] = chat
-        }
+        upsertChat(chat)
+    }
+
+    /// Records how the coffee went for this user. Each participant keeps their
+    /// own answer on the shared chat document.
+    func submitChatOutcome(_ chat: CoffeeChat, outcome: CoffeeChat.MeetingOutcome) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard chat.participantIds.contains(userId) else { throw RepositoryError.notAllowed }
+        guard chat.needsOutcome else { throw RepositoryError.chatNotActive }
+        var updated = chats.first(where: { $0.id == chat.id }) ?? chat
+        updated.outcomes[userId] = outcome.rawValue
+        updated.updatedAt = Date()
+        try await saveChat(updated)
+        upsertChat(updated)
     }
 
     // MARK: - Messaging
@@ -814,7 +1088,7 @@ final class AppRepository: ObservableObject {
 
             // Queue push for other participants (Cloud Function delivers via FCM).
             let recipients = thread.participantIds.filter { $0 != userId }
-            if !usesLocalStore, !recipients.isEmpty {
+            if !usesLocalStore, !recipients.isEmpty, !recipients.contains(where: DemoPartner.isDemo) {
                 let title = profile?.displayName.isEmpty == false ? (profile?.displayName ?? "New message") : "New message"
                 try? await db.collection("pushOutbox").document(UUID().uuidString).setData([
                     "recipientIds": recipients,
@@ -824,6 +1098,24 @@ final class AppRepository: ObservableObject {
                     "status": "pending",
                     "createdAt": Timestamp(date: Date())
                 ], merge: true)
+            }
+
+            if recipients.contains(where: DemoPartner.isDemo) {
+                let reply = ChatMessage(
+                    id: UUID().uuidString,
+                    threadId: threadId,
+                    senderId: DemoPartner.id,
+                    text: DemoPartner.autoReply(to: trimmed),
+                    createdAt: Date().addingTimeInterval(0.5)
+                )
+                try await saveMessage(reply)
+                thread.lastMessage = reply.text
+                thread.updatedAt = reply.createdAt
+                try await saveThread(thread)
+                if let index = threads.firstIndex(where: { $0.id == threadId }) {
+                    threads[index] = thread
+                    threads.sort { $0.updatedAt > $1.updatedAt }
+                }
             }
         }
         return message
@@ -1064,6 +1356,7 @@ enum RepositoryError: LocalizedError {
     case matchNotAccepted
     case chatNotActive
     case sampleProfile
+    case reauthenticationRequired
 
     var errorDescription: String? {
         switch self {
@@ -1076,6 +1369,8 @@ enum RepositoryError: LocalizedError {
         case .matchNotAccepted: return "Wait for the request to be accepted before picking a time."
         case .chatNotActive: return "This coffee chat is no longer active."
         case .sampleProfile: return "This is a sample profile and can't receive requests."
+        case .reauthenticationRequired:
+            return "For security, sign out, sign back in, then delete your account again."
         }
     }
 }
@@ -1090,7 +1385,8 @@ extension UserProfile {
             "skills": skills,
             "credentials": credentials.map(\.firestoreData),
             "availability": availability.map(\.firestoreData),
-            "fcmTokens": fcmTokens,
+            // fcmTokens are written only by PushNotificationService via arrayUnion —
+            // never overwrite them from a profile save (that was wiping push).
             "isReviewer": isReviewer,
             "isDiscoverable": isDiscoverable,
             "onboardingCompleted": onboardingCompleted,
@@ -1107,6 +1403,8 @@ extension UserProfile {
         }
         if let goal { data["goal"] = goal }
         if let bio { data["bio"] = bio }
+        if let buildingIdea { data["buildingIdea"] = buildingIdea }
+        if let linkedInURL { data["linkedInURL"] = linkedInURL }
         if let industry { data["industry"] = industry }
         if let photoURL { data["photoURL"] = photoURL }
         return data
@@ -1131,6 +1429,8 @@ extension UserProfile {
             skills: data["skills"] as? [String] ?? [],
             goal: data["goal"] as? String,
             bio: data["bio"] as? String,
+            buildingIdea: data["buildingIdea"] as? String,
+            linkedInURL: data["linkedInURL"] as? String,
             industry: UserProfile.normalizedIndustry(data["industry"] as? String),
             credentials: credentialMaps.compactMap(VerifiedCredential.init(firestoreData:)),
             availability: windows.isEmpty ? AvailabilityWindow.defaultWorkWeek : windows,
@@ -1291,9 +1591,11 @@ private extension CoffeeChat {
             "setting": setting,
             "talkingPoints": talkingPoints,
             "notes": notes,
+            "privateNotes": privateNotes,
             "status": status,
             "proposedById": proposedById,
             "inviteStatus": inviteStatus,
+            "outcomes": outcomes,
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": Timestamp(date: updatedAt)
         ]
@@ -1328,6 +1630,7 @@ private extension CoffeeChat {
             setting: data["setting"] as? String ?? "Virtual",
             talkingPoints: data["talkingPoints"] as? String ?? "",
             notes: data["notes"] as? String ?? "",
+            privateNotes: data["privateNotes"] as? [String: String] ?? [:],
             status: data["status"] as? String ?? CoffeeChat.legacyConfirmedStatus,
             proposedById: data["proposedById"] as? String ?? userId,
             respondedAt: (data["respondedAt"] as? Timestamp)?.dateValue(),
@@ -1337,6 +1640,7 @@ private extension CoffeeChat {
             endsAt: (data["endsAt"] as? Timestamp)?.dateValue(),
             calendarEventId: data["calendarEventId"] as? String,
             inviteStatus: data["inviteStatus"] as? String ?? "none",
+            outcomes: data["outcomes"] as? [String: String] ?? [:],
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
             updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
         )

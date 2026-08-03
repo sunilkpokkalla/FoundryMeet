@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 
 struct AvailabilityEditorView: View {
     @EnvironmentObject private var repository: AppRepository
@@ -10,60 +9,44 @@ struct AvailabilityEditorView: View {
     @State private var isSaving = false
 
     private let weekdays: [(Int, String)] = [
-        (2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")
+        (2, "Monday"), (3, "Tuesday"), (4, "Wednesday"), (5, "Thursday"),
+        (6, "Friday"), (7, "Saturday"), (1, "Sunday")
     ]
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                AppColors.surface.ignoresSafeArea()
-                List {
-                    Section {
-                        Text("Open times are generated from these windows, minus events already on your calendar.")
-                            .font(.system(size: 14))
-                            .foregroundColor(AppColors.onSurfaceVariant)
-                            .listRowBackground(AppColors.surface)
-                    }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Open times are generated from these windows, minus events already on your calendar.")
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     ForEach(weekdays, id: \.0) { day in
-                        Section(day.1) {
-                            Toggle("Available", isOn: bindingEnabled(for: day.0))
-                                .tint(AppColors.secondary)
-
-                            if windows.contains(where: { $0.weekday == day.0 }) {
-                                Stepper(
-                                    "Start \(timeLabel(minutes(for: day.0, start: true)))",
-                                    value: bindingMinutes(for: day.0, start: true),
-                                    in: 6 * 60...20 * 60,
-                                    step: 30
-                                )
-                                Stepper(
-                                    "End \(timeLabel(minutes(for: day.0, start: false)))",
-                                    value: bindingMinutes(for: day.0, start: false),
-                                    in: 7 * 60...22 * 60,
-                                    step: 30
-                                )
-                            }
-                        }
-                        .listRowBackground(AppColors.surfaceContainerLowest)
+                        dayCard(weekday: day.0, title: day.1)
                     }
 
                     if !statusMessage.isEmpty {
-                        Section {
-                            Text(statusMessage)
-                                .foregroundColor(AppColors.secondary)
-                        }
+                        Text(statusMessage)
+                            .font(.system(size: 13))
+                            .foregroundColor(statusMessage.contains("saved") ? AppColors.secondary : Color(hex: 0xB42318))
                     }
                 }
-                .scrollContentBackground(.hidden)
+                .padding(20)
+                .padding(.bottom, 24)
             }
+            .background(AppColors.surface.ignoresSafeArea())
             .navigationTitle("Availability")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                        .foregroundColor(AppColors.onSurface)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button(isSaving ? "Saving…" : "Save") { save() }
+                        .fontWeight(.semibold)
+                        .foregroundColor(AppColors.secondary)
                         .disabled(isSaving)
                 }
             }
@@ -73,13 +56,77 @@ struct AvailabilityEditorView: View {
         }
     }
 
+    private func dayCard(weekday: Int, title: String) -> some View {
+        let enabled = windows.contains { $0.weekday == weekday }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Toggle(isOn: bindingEnabled(for: weekday)) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(AppColors.onSurface)
+            }
+            .tint(AppColors.secondary)
+
+            if enabled {
+                HStack {
+                    Text("Start")
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    Spacer()
+                    Stepper(
+                        timeLabel(minutes(for: weekday, start: true)),
+                        value: bindingMinutes(for: weekday, start: true),
+                        in: 6 * 60...20 * 60,
+                        step: 30
+                    )
+                    .labelsHidden()
+                    Text(timeLabel(minutes(for: weekday, start: true)))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(AppColors.onSurface)
+                        .frame(minWidth: 72, alignment: .trailing)
+                }
+
+                HStack {
+                    Text("End")
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    Spacer()
+                    Stepper(
+                        timeLabel(minutes(for: weekday, start: false)),
+                        value: bindingMinutes(for: weekday, start: false),
+                        in: 7 * 60...22 * 60,
+                        step: 30
+                    )
+                    .labelsHidden()
+                    Text(timeLabel(minutes(for: weekday, start: false)))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(AppColors.onSurface)
+                        .frame(minWidth: 72, alignment: .trailing)
+                }
+            }
+        }
+        .padding(16)
+        .background(AppColors.surfaceContainerLowest)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
+    }
+
     private func bindingEnabled(for weekday: Int) -> Binding<Bool> {
         Binding(
             get: { windows.contains { $0.weekday == weekday } },
             set: { enabled in
                 if enabled {
                     if !windows.contains(where: { $0.weekday == weekday }) {
-                        windows.append(AvailabilityWindow(weekday: weekday, startMinutes: 9 * 60, endMinutes: 17 * 60))
+                        windows.append(
+                            AvailabilityWindow(
+                                weekday: weekday,
+                                startMinutes: 9 * 60,
+                                endMinutes: 17 * 60
+                            )
+                        )
                     }
                 } else {
                     windows.removeAll { $0.weekday == weekday }
@@ -151,34 +198,47 @@ struct CredentialReviewQueueView: View {
                     Text("No pending credentials.")
                         .foregroundColor(AppColors.onSurfaceVariant)
                 } else {
-                    List(reviews) { review in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(review.title)
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("\(review.issuer) · \(review.userName)")
-                                .font(.system(size: 13))
-                                .foregroundColor(AppColors.onSurfaceVariant)
-                            if let url = URL(string: review.url) {
-                                Link(review.url, destination: url)
-                                    .font(.system(size: 13))
-                            }
-                            HStack {
-                                Button("Verify") {
-                                    Task { await decide(review, approve: true) }
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(reviews) { review in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(review.title)
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(AppColors.onSurface)
+                                    Text("\(review.issuer) · \(review.userName)")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(AppColors.onSurfaceVariant)
+                                    if let url = URL(string: review.url) {
+                                        Link(review.url, destination: url)
+                                            .font(.system(size: 13))
+                                    }
+                                    HStack {
+                                        Button("Verify") {
+                                            Task { await decide(review, approve: true) }
+                                        }
+                                        .foregroundColor(Color(hex: 0x2F6B3A))
+                                        Button("Reject", role: .destructive) {
+                                            Task { await decide(review, approve: false) }
+                                        }
+                                    }
+                                    .padding(.top, 4)
                                 }
-                                .tint(Color(hex: 0x2F6B3A))
-                                Button("Reject", role: .destructive) {
-                                    Task { await decide(review, approve: false) }
-                                }
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(AppColors.surfaceContainerLowest)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(AppColors.hairline, lineWidth: 1)
+                                )
                             }
-                            .padding(.top, 4)
                         }
-                        .listRowBackground(AppColors.surfaceContainerLowest)
+                        .padding(20)
                     }
-                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("Review queue")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
