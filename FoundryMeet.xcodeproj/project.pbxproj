@@ -18,6 +18,7 @@
 		17B4A2B3AA784B964A7903B0 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = E6D10DC36E5A374E2D039F48 /* FirebaseAnalytics */; };
 		26F9D337DB45A4B332487D85 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 809C84BC925A5E333FEB86C9 /* GoogleSignInSwift */; };
 		2BBB68BCFA19E20F69F33A53 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DBFEA2849FEF2171849697 /* ProfileView.swift */; };
+		30F52958725BA2855E943DD8 /* GeoDistanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30719114F11A9A8A785BE232 /* GeoDistanceTests.swift */; };
 		319AAA99038305B843249B53 /* ChipGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039EF67B4A3D2DFCE2BB5947 /* ChipGrid.swift */; };
 		332B727CD91178F7F05F384B /* AvailabilityEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168055766154EE0EC298438F /* AvailabilityEngine.swift */; };
 		3823C1C7A031E78E1007D0FA /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = B2A6663042E0FDEE2F78775F /* FirebaseAuth */; };
@@ -52,6 +53,7 @@
 		EEC2E53122AA9F0423D4A0B3 /* LocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214ED58AD5A199257A859B1 /* LocationTests.swift */; };
 		F4C8DA8610BD2F138B69696E /* AppChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78EA52054894AED4DB6749E /* AppChrome.swift */; };
 		F5A422C4628258A76C3F0E42 /* SlotPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 033CE942D48E98BD6D91D55B /* SlotPicker.swift */; };
+		F643ABFFDEF2C504612EA54D /* GeoDistance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B56CAEB0BBA01B3DC11AA3B /* GeoDistance.swift */; };
 		FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19898197BAA10B276B2FB8DE /* DiscoveryView.swift */; };
 /* End PBXBuildFile section */
 
@@ -76,6 +78,7 @@
 		19898197BAA10B276B2FB8DE /* DiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryView.swift; sourceTree = "<group>"; };
 		1E903B45CAD7CFFB405162D4 /* LocationField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationField.swift; sourceTree = "<group>"; };
 		2A6A1D566CD3C165DF08C3F1 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		30719114F11A9A8A785BE232 /* GeoDistanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDistanceTests.swift; sourceTree = "<group>"; };
 		38A92E9CBEFBCC318A343238 /* CalendarInviteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarInviteService.swift; sourceTree = "<group>"; };
 		4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchModels.swift; sourceTree = "<group>"; };
 		50B84F4B4F694E651E433F91 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -87,6 +90,7 @@
 		6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		8B39764E724A6424013283BC /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		8C88E22C8C7EC98421373CA8 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		9B56CAEB0BBA01B3DC11AA3B /* GeoDistance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDistance.swift; sourceTree = "<group>"; };
 		A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundryMeetApp.swift; sourceTree = "<group>"; };
 		A9D80E83BD0C55AE441FCB08 /* FoundryMeet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoundryMeet.entitlements; sourceTree = "<group>"; };
 		AAA8E46D63E7E1BE61768C2C /* ProfileTaxonomyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTaxonomyTests.swift; sourceTree = "<group>"; };
@@ -155,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				BB4A1D43C61E6AB28D080351 /* AvailabilityEngineTests.swift */,
+				30719114F11A9A8A785BE232 /* GeoDistanceTests.swift */,
 				CB610ACCC262F5450B96F1BF /* GoalMatchingTests.swift */,
 				5214ED58AD5A199257A859B1 /* LocationTests.swift */,
 				ACE187A071612C4F1EE0959D /* MatchFlowTests.swift */,
@@ -187,6 +192,7 @@
 				D42093543269A721723F2C71 /* AppRepository.swift */,
 				168055766154EE0EC298438F /* AvailabilityEngine.swift */,
 				38A92E9CBEFBCC318A343238 /* CalendarInviteService.swift */,
+				9B56CAEB0BBA01B3DC11AA3B /* GeoDistance.swift */,
 				C04F7CF41775C398F1D928C0 /* LocationSearchService.swift */,
 				65AD8BB63D42C2DE487CC423 /* PhotoStorageService.swift */,
 				DC63B2A9B7E5338E3AE9FFC4 /* PushNotificationService.swift */,
@@ -342,6 +348,7 @@
 				52A472616988CFFDC5487F10 /* ContentView.swift in Sources */,
 				FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */,
 				69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */,
+				F643ABFFDEF2C504612EA54D /* GeoDistance.swift in Sources */,
 				789173DD07273205323A1941 /* LocationField.swift in Sources */,
 				5496296331C5E1CC9A53E5D9 /* LocationSearchService.swift in Sources */,
 				8D04A7F7835A240071A0A5F9 /* MainTabView.swift in Sources */,
@@ -366,6 +373,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7B5C6D3D81A12A2FD8631FCD /* AvailabilityEngineTests.swift in Sources */,
+				30F52958725BA2855E943DD8 /* GeoDistanceTests.swift in Sources */,
 				3EC6734443DA33A2D1C67436 /* GoalMatchingTests.swift in Sources */,
 				EEC2E53122AA9F0423D4A0B3 /* LocationTests.swift in Sources */,
 				40B94A5ABF0E62E13927BD1C /* MatchFlowTests.swift in Sources */,
