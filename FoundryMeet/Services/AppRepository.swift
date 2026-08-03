@@ -367,6 +367,18 @@ final class AppRepository: ObservableObject {
         try await saveChat(chat)
         upsertChat(chat)
 
+        // Demo partner confirms immediately so calendar + outcome flows are testable.
+        if DemoPartner.isDemo(otherId) {
+            var confirmed = chat
+            confirmed.status = CoffeeChat.Status.confirmed.rawValue
+            confirmed.respondedAt = Date()
+            confirmed.updatedAt = Date()
+            try await saveChat(confirmed)
+            upsertChat(confirmed)
+            await syncCalendarState()
+            return confirmed
+        }
+
         try await enqueuePush(
             recipientIds: [otherId],
             title: "New time proposed",
@@ -677,7 +689,7 @@ final class AppRepository: ObservableObject {
         }
 
         // Complementary goals first, then closer people, then original order.
-        discoveryFeed = candidates.enumerated()
+        var ranked = candidates.enumerated()
             .sorted { lhs, rhs in
                 let lhsFits = NetworkingGoal.areComplementary(myGoal, lhs.element.goal)
                 let rhsFits = NetworkingGoal.areComplementary(myGoal, rhs.element.goal)
@@ -703,6 +715,14 @@ final class AppRepository: ObservableObject {
                 return lhs.offset < rhs.offset
             }
             .map(\.element)
+
+        // Pin the interactive demo partner so testers can always run the full loop.
+        let demo = DemoPartner.candidate(for: profile)
+        if !excludedCandidateIds.contains(demo.id) {
+            ranked.removeAll { $0.id == demo.id }
+            ranked.insert(demo, at: 0)
+        }
+        discoveryFeed = ranked
     }
 
     func dismissCandidate(_ candidate: DiscoveryCandidate) async throws {
@@ -723,6 +743,10 @@ final class AppRepository: ObservableObject {
     func requestMatch(with candidate: DiscoveryCandidate, note: String = "") async throws {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
         guard candidate.id != userId else { throw RepositoryError.invalidInput }
+        if DemoPartner.isDemo(candidate.id) {
+            try await connectWithDemoPartner(candidate, note: note)
+            return
+        }
         guard !candidate.isSeed || usesLocalStore else { throw RepositoryError.sampleProfile }
 
         if let existing = matchRequests.first(where: { $0.id == MatchRequest.pairId(userId, candidate.id) }) {
@@ -761,6 +785,57 @@ final class AppRepository: ObservableObject {
             title: "New coffee chat request",
             body: "\(request.requesterName) would like to grab coffee."
         )
+    }
+
+    /// Demo partner auto-accepts, opens chat, and drops a welcome message so the
+    /// full coffee-chat loop can be tested without a second device.
+    private func connectWithDemoPartner(_ candidate: DiscoveryCandidate, note: String) async throws {
+        guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
+
+        if let existing = matchRequests.first(where: { $0.id == MatchRequest.pairId(userId, candidate.id) }),
+           existing.isAccepted {
+            throw RepositoryError.duplicateRequest
+        }
+
+        let request = MatchRequest(
+            requesterId: userId,
+            requesterName: me.displayName.isEmpty ? "Founder" : me.displayName,
+            requesterRole: me.role ?? "Founder",
+            recipientId: candidate.id,
+            recipientName: candidate.name,
+            recipientRole: candidate.role,
+            status: .accepted,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        try await saveMatchRequest(request)
+        upsertMatchRequest(request)
+
+        try await recordInteraction(
+            candidateId: candidate.id,
+            candidateName: candidate.name,
+            candidateRole: candidate.role,
+            action: .connected
+        )
+        excludedCandidateIds.insert(candidate.id)
+        discoveryFeed.removeAll { $0.id == candidate.id }
+
+        let thread = try await openOrCreateThread(with: candidate)
+        let welcome = ChatMessage(
+            id: UUID().uuidString,
+            threadId: thread.id,
+            senderId: DemoPartner.id,
+            text: DemoPartner.welcomeMessage,
+            createdAt: Date()
+        )
+        try await saveMessage(welcome)
+        if var updated = threads.first(where: { $0.id == thread.id }) {
+            updated.lastMessage = welcome.text
+            updated.updatedAt = Date()
+            try await saveThread(updated)
+            if let index = threads.firstIndex(where: { $0.id == updated.id }) {
+                threads[index] = updated
+            }
+        }
     }
 
     /// Accepts or declines a request addressed to me.
@@ -898,7 +973,7 @@ final class AppRepository: ObservableObject {
 
             // Queue push for other participants (Cloud Function delivers via FCM).
             let recipients = thread.participantIds.filter { $0 != userId }
-            if !usesLocalStore, !recipients.isEmpty {
+            if !usesLocalStore, !recipients.isEmpty, !recipients.contains(where: DemoPartner.isDemo) {
                 let title = profile?.displayName.isEmpty == false ? (profile?.displayName ?? "New message") : "New message"
                 try? await db.collection("pushOutbox").document(UUID().uuidString).setData([
                     "recipientIds": recipients,
@@ -908,6 +983,24 @@ final class AppRepository: ObservableObject {
                     "status": "pending",
                     "createdAt": Timestamp(date: Date())
                 ], merge: true)
+            }
+
+            if recipients.contains(where: DemoPartner.isDemo) {
+                let reply = ChatMessage(
+                    id: UUID().uuidString,
+                    threadId: threadId,
+                    senderId: DemoPartner.id,
+                    text: DemoPartner.autoReply(to: trimmed),
+                    createdAt: Date().addingTimeInterval(0.5)
+                )
+                try await saveMessage(reply)
+                thread.lastMessage = reply.text
+                thread.updatedAt = reply.createdAt
+                try await saveThread(thread)
+                if let index = threads.firstIndex(where: { $0.id == threadId }) {
+                    threads[index] = thread
+                    threads.sort { $0.updatedAt > $1.updatedAt }
+                }
             }
         }
         return message

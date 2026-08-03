@@ -473,6 +473,12 @@ struct DiscoveryProfileCard: View {
 
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 4) {
+                        if profile.isSeed {
+                            Text("SAMPLE")
+                                .font(.system(size: 11, weight: .bold))
+                                .tracking(0.6)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
                         Text(profile.name)
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.white)

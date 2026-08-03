@@ -319,6 +319,60 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     }
 }
 
+/// Interactive sample partner for end-to-end testing. Auto-accepts, replies in
+/// chat, and confirms coffee times — there is no real person behind the id.
+enum DemoPartner {
+    static let id = "demo-partner-maya"
+    static let name = "Maya Okonkwo"
+    static let role = "Advisor"
+
+    static func isDemo(_ candidateId: String) -> Bool {
+        candidateId == id
+    }
+
+    /// Shaped to complement the signed-in user so filters still surface them.
+    static func candidate(for me: UserProfile?) -> DiscoveryCandidate {
+        let myGoal = me?.goal.flatMap(NetworkingGoal.init(rawValue:))
+        let theirGoal = myGoal?.counterparts.first ?? .adviseAndMentor
+        let city = me?.location?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let location = (city?.isEmpty == false && city?.lowercased() != "remote")
+            ? city!
+            : "Austin, TX"
+
+        return DiscoveryCandidate(
+            id: id,
+            name: name,
+            role: "\(role) · Early-stage GTM",
+            imgUrl: "https://i.pravatar.cc/600?u=foundrymeet-maya-okonkwo",
+            desc: "Happy to grab coffee and pressure-test positioning, first hires, and how you talk about the problem. This is a sample profile for testing FoundryMeet.",
+            tags: ["Go-to-Market", "Fundraising", "Hiring"],
+            industry: Industry.ai.rawValue,
+            stages: [StartupStage.seed.rawValue, StartupStage.seriesA.rawValue],
+            goal: theirGoal.rawValue,
+            location: location,
+            latitude: me?.latitude ?? 30.2672,
+            longitude: me?.longitude ?? -97.7431,
+            buildingIdea: "Advising seed teams on GTM and fundraising narrative",
+            linkedInURL: "https://www.linkedin.com/",
+            isSeed: true
+        )
+    }
+
+    static let welcomeMessage =
+        "Hey — Maya here (sample partner). Request accepted. Pick a coffee time in Schedule, or message me here to try chat."
+
+    static func autoReply(to text: String) -> String {
+        let lower = text.lowercased()
+        if lower.contains("time") || lower.contains("coffee") || lower.contains("meet") {
+            return "Sounds good. Propose a slot in Schedule and I’ll confirm it automatically so you can finish the flow."
+        }
+        if lower.contains("hi") || lower.contains("hello") || lower.contains("hey") {
+            return "Hey! I’m a sample partner — ask anything about the coffee-chat flow and I’ll reply here."
+        }
+        return "Got it. I’m a demo partner, so you’ll get this auto-reply. Try proposing a coffee time next."
+    }
+}
+
 enum SeedCatalog {
     /// Sample profiles for the local debug store. They have no account behind
     /// them, so they are never mixed into a live directory.
