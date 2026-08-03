@@ -191,7 +191,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     let desc: String
     let tags: [String]
     let industry: String
-    var stage: String? = nil
+    var stages: [String] = []
     var goal: String? = nil
     var credentials: [VerifiedCredential] = []
     /// Sample profile with no account behind it, so it cannot receive a request.
@@ -228,7 +228,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         desc: String,
         tags: [String],
         industry: String,
-        stage: String? = nil,
+        stages: [String] = [],
         goal: String? = nil,
         credentials: [VerifiedCredential] = [],
         isSeed: Bool = false
@@ -240,7 +240,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         self.desc = desc
         self.tags = tags
         self.industry = industry
-        self.stage = stage
+        self.stages = stages
         self.goal = goal
         self.credentials = credentials
         self.isSeed = isSeed
@@ -256,8 +256,8 @@ struct DiscoveryCandidate: Identifiable, Equatable {
                 ? profile.bio!
                 : (profile.goal.map { "Looking for: \($0)" } ?? "Open to high-signal coffee chats."),
             tags: profile.skills,
-            industry: profile.industry ?? profile.stage ?? "Startup",
-            stage: profile.stage,
+            industry: profile.industry ?? "Startup",
+            stages: profile.stages,
             goal: profile.goal,
             credentials: profile.credentials
         )

@@ -120,8 +120,9 @@ final class AppRepository: ObservableObject {
 
     func saveOnboarding(
         role: String?,
-        location: String,
-        stage: String?,
+        place: ResolvedPlace?,
+        stages: [StartupStage],
+        industry: Industry?,
         skills: [String],
         goal: String?
     ) async throws {
@@ -129,11 +130,13 @@ final class AppRepository: ObservableObject {
             throw RepositoryError.notSignedIn
         }
         current.role = role
-        current.location = location.trimmingCharacters(in: .whitespacesAndNewlines)
-        current.stage = stage
+        current.location = place?.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        current.latitude = place?.latitude
+        current.longitude = place?.longitude
+        current.stages = stages.map(\.rawValue)
         current.skills = skills
         current.goal = goal
-        current.industry = stage
+        current.industry = industry?.rawValue
         current.onboardingCompleted = true
         current.updatedAt = Date()
         try await saveProfile(current)
@@ -605,12 +608,7 @@ final class AppRepository: ObservableObject {
         candidates = candidates.filter { !excludedCandidateIds.contains($0.id) }
 
         if let stage = filters.stage, !stage.isEmpty {
-            let token = stage.replacingOccurrences(of: "+", with: "")
-            candidates = candidates.filter {
-                $0.stage?.localizedCaseInsensitiveContains(token) == true
-                    || $0.industry.localizedCaseInsensitiveContains(token)
-                    || stage == "Seed+"
-            }
+            candidates = candidates.filter { StartupStage.stages($0.stages, match: stage) }
         }
         if let goal = filters.goal, !goal.isEmpty {
             candidates = candidates.filter {
@@ -998,7 +996,7 @@ final class AppRepository: ObservableObject {
                 displayName: candidate.name,
                 role: candidate.role,
                 location: "Remote",
-                stage: candidate.stage ?? "Seed",
+                stages: candidate.stages.isEmpty ? [StartupStage.seed.rawValue] : candidate.stages,
                 skills: candidate.tags,
                 goal: candidate.goal ?? "Get Advice",
                 bio: candidate.desc,
@@ -1093,7 +1091,12 @@ extension UserProfile {
         ]
         if let role { data["role"] = role }
         if let location { data["location"] = location }
-        if let stage { data["stage"] = stage }
+        if let latitude { data["latitude"] = latitude }
+        if let longitude { data["longitude"] = longitude }
+        if !stages.isEmpty {
+            data["stages"] = stages
+            data["stage"] = stages[0]
+        }
         if let goal { data["goal"] = goal }
         if let bio { data["bio"] = bio }
         if let industry { data["industry"] = industry }
@@ -1111,7 +1114,10 @@ extension UserProfile {
             displayName: data["displayName"] as? String ?? "",
             role: data["role"] as? String,
             location: data["location"] as? String,
-            stage: data["stage"] as? String,
+            latitude: data["latitude"] as? Double,
+            longitude: data["longitude"] as? Double,
+            // Documents written before multi-stage support only carry `stage`.
+            stages: data["stages"] as? [String] ?? [data["stage"] as? String].compactMap { $0 },
             skills: data["skills"] as? [String] ?? [],
             goal: data["goal"] as? String,
             bio: data["bio"] as? String,

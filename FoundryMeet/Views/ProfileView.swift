@@ -10,12 +10,12 @@ struct ProfileView: View {
     @State private var isEditing = false
     @State private var displayName = ""
     @State private var role = ""
-    @State private var location = ""
-    @State private var stage = ""
+    @State private var place: ResolvedPlace?
+    @State private var stages: Set<StartupStage> = []
     @State private var goal = ""
-    @State private var industry = ""
+    @State private var industry: Industry?
     @State private var bio = ""
-    @State private var skillsText = ""
+    @State private var skills: Set<Skill> = []
     @State private var isDiscoverable = true
     @State private var statusMessage = ""
     @State private var showMessages = false
@@ -27,6 +27,12 @@ struct ProfileView: View {
     @State private var credURL = ""
     @State private var photoItem: PhotosPickerItem?
     @State private var isUploadingPhoto = false
+
+    private var parsedRole: FounderRole? { FounderRole(rawValue: role) }
+
+    /// Role is still free text here, so an off-taxonomy answer falls back to the
+    /// widest stage list rather than hiding options from someone.
+    private var editedRole: FounderRole { parsedRole ?? .builder }
 
     var body: some View {
         NavigationStack {
@@ -221,15 +227,63 @@ struct ProfileView: View {
                 divider
                 editField("Role", text: $role)
                 divider
-                editField("Location", text: $location)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Location")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    LocationField(place: $place)
+                }
+                .padding(.vertical, 12)
                 divider
-                editField("Stage", text: $stage)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(parsedRole?.stageLabel ?? "Stage")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    ChipGrid(
+                        items: editedRole.stages,
+                        title: { $0.title },
+                        isSelected: { stages.contains($0) },
+                        onTap: { stages = editedRole.toggling($0, in: stages) }
+                    )
+                }
+                .padding(.vertical, 12)
                 divider
                 editField("Goal", text: $goal)
                 divider
-                editField("Industry", text: $industry)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Industry")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    ChipGrid(
+                        items: Industry.allCases,
+                        title: { $0.title },
+                        isSelected: { industry == $0 },
+                        onTap: { industry = industry == $0 ? nil : $0 }
+                    )
+                }
+                .padding(.vertical, 12)
                 divider
-                editField("Skills", text: $skillsText, placeholder: "Comma-separated")
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Skills")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                        Spacer()
+                        Text("\(skills.count) of \(Skill.selectionLimit)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant.opacity(0.7))
+                    }
+                    ChipGrid(
+                        items: editedRole.skills,
+                        title: { $0.title },
+                        icon: { $0.icon },
+                        isSelected: { skills.contains($0) },
+                        isDisabled: { skills.count >= Skill.selectionLimit && !skills.contains($0) },
+                        onTap: { skills = Skill.toggling($0, in: skills) },
+                        minWidth: 132
+                    )
+                }
+                .padding(.vertical, 12)
                 divider
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Bio")
@@ -269,7 +323,7 @@ struct ProfileView: View {
                 divider
                 detailRow("Location", profile.location?.isEmpty == false ? profile.location! : "—")
                 divider
-                detailRow("Stage", profile.stage ?? "—")
+                detailRow("Stage", profile.stageSummary)
                 divider
                 detailRow("Goal", profile.goal ?? "—")
                 divider
@@ -533,12 +587,12 @@ struct ProfileView: View {
         guard let profile = repository.profile else { return }
         displayName = profile.displayName
         role = profile.role ?? ""
-        location = profile.location ?? ""
-        stage = profile.stage ?? ""
+        place = profile.place
+        stages = Set(profile.stages.compactMap(StartupStage.init(rawValue:)))
         goal = profile.goal ?? ""
-        industry = profile.industry ?? ""
+        industry = profile.industry.flatMap(Industry.init(rawValue:))
         bio = profile.bio ?? ""
-        skillsText = profile.skills.joined(separator: ", ")
+        skills = Set(profile.skills.compactMap(Skill.parse))
         isDiscoverable = profile.isDiscoverable
     }
 
@@ -546,15 +600,14 @@ struct ProfileView: View {
         guard var profile = repository.profile else { return }
         profile.displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.role = role.isEmpty ? nil : role
-        profile.location = location
-        profile.stage = stage.isEmpty ? nil : stage
+        profile.location = place?.displayName
+        profile.latitude = place?.latitude
+        profile.longitude = place?.longitude
+        profile.stages = editedRole.stages.filter(stages.contains).map(\.rawValue)
         profile.goal = goal.isEmpty ? nil : goal
-        profile.industry = industry.isEmpty ? nil : industry
+        profile.industry = industry?.rawValue
         profile.bio = bio.isEmpty ? nil : bio
-        profile.skills = skillsText
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        profile.skills = editedRole.skills.filter(skills.contains).map(\.rawValue)
         profile.isDiscoverable = isDiscoverable
         Task {
             do {

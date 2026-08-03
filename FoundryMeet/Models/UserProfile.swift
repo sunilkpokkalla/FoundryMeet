@@ -44,7 +44,13 @@ struct UserProfile: Codable, Equatable {
     var displayName: String
     var role: String?
     var location: String?
-    var stage: String?
+    /// Set only when the location came from a picked place, so distance-based
+    /// matching can use it later.
+    var latitude: Double?
+    var longitude: Double?
+    /// Advisors and investors span several stages, so this is the real answer.
+    /// `stage` stays as the first entry for older clients and existing documents.
+    var stages: [String]
     var skills: [String]
     var goal: String?
     var bio: String?
@@ -65,7 +71,9 @@ struct UserProfile: Codable, Equatable {
         displayName: String = "",
         role: String? = nil,
         location: String? = nil,
-        stage: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        stages: [String] = [],
         skills: [String] = [],
         goal: String? = nil,
         bio: String? = nil,
@@ -85,7 +93,9 @@ struct UserProfile: Codable, Equatable {
         self.displayName = displayName
         self.role = role
         self.location = location
-        self.stage = stage
+        self.latitude = latitude
+        self.longitude = longitude
+        self.stages = stages
         self.skills = skills
         self.goal = goal
         self.bio = bio
@@ -99,6 +109,18 @@ struct UserProfile: Codable, Equatable {
         self.onboardingCompleted = onboardingCompleted
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// The headline stage, for anywhere that can only show one.
+    var stage: String? { stages.first }
+
+    var stageSummary: String {
+        stages.isEmpty ? "—" : stages.joined(separator: ", ")
+    }
+
+    var place: ResolvedPlace? {
+        guard let location, !location.isEmpty else { return nil }
+        return ResolvedPlace(displayName: location, latitude: latitude, longitude: longitude)
     }
 
     var initials: String {
