@@ -48,6 +48,11 @@ struct MatchRequest: Codable, Identifiable, Equatable {
         [first, second].sorted().joined(separator: "_")
     }
 
+    /// True when both sides resolve to the same account.
+    static func isSelfPair(_ first: String, _ second: String) -> Bool {
+        !first.isEmpty && first == second
+    }
+
     init(
         requesterId: String,
         requesterName: String,
@@ -67,7 +72,8 @@ struct MatchRequest: Codable, Identifiable, Equatable {
         self.recipientId = recipientId
         self.recipientName = recipientName
         self.recipientRole = recipientRole
-        self.participantIds = [requesterId, recipientId].sorted()
+        // Keep unique ids only — a self-pair would otherwise look like two participants.
+        self.participantIds = Array(Set([requesterId, recipientId])).sorted()
         self.status = status.rawValue
         self.note = note
         self.createdAt = createdAt
@@ -232,6 +238,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     var location: String? = nil
     var latitude: Double? = nil
     var longitude: Double? = nil
+    var bio: String? = nil
     var buildingIdea: String? = nil
     var linkedInURL: String? = nil
     var credentials: [VerifiedCredential] = []
@@ -274,6 +281,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         location: String? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
+        bio: String? = nil,
         buildingIdea: String? = nil,
         linkedInURL: String? = nil,
         credentials: [VerifiedCredential] = [],
@@ -291,6 +299,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         self.location = location
         self.latitude = latitude
         self.longitude = longitude
+        self.bio = bio
         self.buildingIdea = buildingIdea
         self.linkedInURL = linkedInURL
         self.credentials = credentials
@@ -299,11 +308,12 @@ struct DiscoveryCandidate: Identifiable, Equatable {
 
     init(profile: UserProfile) {
         let idea = profile.buildingIdea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let about = profile.bio?.trimmingCharacters(in: .whitespacesAndNewlines)
         let blurb: String
         if let idea, !idea.isEmpty {
             blurb = idea
-        } else if let bio = profile.bio, !bio.isEmpty {
-            blurb = bio
+        } else if let about, !about.isEmpty {
+            blurb = about
         } else if let goal = profile.goal {
             blurb = "Looking for: \(goal)"
         } else {
@@ -322,6 +332,7 @@ struct DiscoveryCandidate: Identifiable, Equatable {
             location: profile.location,
             latitude: profile.latitude,
             longitude: profile.longitude,
+            bio: about?.isEmpty == false ? about : nil,
             buildingIdea: idea?.isEmpty == false ? idea : nil,
             linkedInURL: profile.linkedInURL,
             credentials: profile.credentials

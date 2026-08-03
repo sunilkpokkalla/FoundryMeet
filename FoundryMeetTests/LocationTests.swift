@@ -120,3 +120,80 @@ final class ResolvedPlaceTests: XCTestCase {
         XCTAssertNil(restored.longitude)
     }
 }
+
+final class LocationPartsTests: XCTestCase {
+    func testParsesUSCityAndState() {
+        let parsed = LocationParts.parse("Austin, TX")
+        XCTAssertEqual(parsed.city, "Austin")
+        XCTAssertEqual(parsed.region, "TX")
+        XCTAssertEqual(parsed.country, "United States")
+        XCTAssertEqual(parsed.cityLabel, "Austin, TX")
+        XCTAssertFalse(parsed.isRemote)
+    }
+
+    func testParsesInternationalCity() {
+        let parsed = LocationParts.parse("Berlin, Germany")
+        XCTAssertEqual(parsed.city, "Berlin")
+        XCTAssertEqual(parsed.country, "Germany")
+        XCTAssertEqual(parsed.cityLabel, "Berlin, Germany")
+    }
+
+    func testParsesRemote() {
+        XCTAssertTrue(LocationParts.parse("Remote").isRemote)
+        XCTAssertTrue(LocationParts.isRemote("remote"))
+    }
+
+    func testCountryAndCityMatching() {
+        XCTAssertTrue(LocationParts.matchesCountry("Austin, TX", country: "United States"))
+        XCTAssertTrue(LocationParts.matchesCountry("Berlin, Germany", country: "Germany"))
+        XCTAssertTrue(LocationParts.matchesCity("Austin, TX", cityLabel: "Austin, TX"))
+        XCTAssertFalse(LocationParts.matchesCity("Austin, TX", cityLabel: "Berlin, Germany"))
+    }
+
+    func testHubFilterScopes() {
+        let builders = [
+            DiscoveryCandidate(
+                id: "1", name: "A", role: "Founder", imgUrl: "", desc: "",
+                tags: [], industry: "AI", location: "Austin, TX",
+                latitude: 30.27, longitude: -97.74
+            ),
+            DiscoveryCandidate(
+                id: "2", name: "B", role: "Founder", imgUrl: "", desc: "",
+                tags: [], industry: "AI", location: "Berlin, Germany"
+            ),
+            DiscoveryCandidate(
+                id: "3", name: "C", role: "Founder", imgUrl: "", desc: "",
+                tags: [], industry: "AI", location: "Remote"
+            )
+        ]
+
+        let remote = builders.filtered(
+            by: HubLocationFilter(scope: .remote),
+            myLocation: "Austin, TX",
+            myLatitude: 30.27,
+            myLongitude: -97.74
+        )
+        XCTAssertEqual(remote.map(\.id), ["3"])
+
+        let country = builders.filtered(
+            by: HubLocationFilter(scope: .country, country: "Germany"),
+            myLocation: nil,
+            myLatitude: nil,
+            myLongitude: nil
+        )
+        XCTAssertEqual(country.map(\.id), ["2"])
+
+        let city = builders.filtered(
+            by: HubLocationFilter(scope: .city, city: "Austin, TX"),
+            myLocation: nil,
+            myLatitude: nil,
+            myLongitude: nil
+        )
+        XCTAssertEqual(city.map(\.id), ["1"])
+
+        let options = HubPlaceOptions.from(builders: builders)
+        XCTAssertTrue(options.countries.contains("United States"))
+        XCTAssertTrue(options.countries.contains("Germany"))
+        XCTAssertEqual(options.cities.map(\.label).sorted(), ["Austin, TX", "Berlin, Germany"])
+    }
+}

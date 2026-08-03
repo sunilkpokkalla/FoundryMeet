@@ -42,6 +42,9 @@ struct ProfileAvatarView: View {
     var photoURL: String?
     var initials: String = ""
     var size: CGFloat = 36
+    /// Optional tint for the initials placeholder (Hub cards, profile sheets).
+    var fallbackFill: Color? = nil
+    var fallbackForeground: Color? = nil
 
     @State private var image: UIImage?
     @State private var didFail = false
@@ -77,15 +80,15 @@ struct ProfileAvatarView: View {
 
     private var fallback: some View {
         ZStack {
-            Circle().fill(AppColors.surfaceContainerLowest)
+            Circle().fill(fallbackFill ?? AppColors.surfaceContainerLowest)
             if initials.isEmpty {
                 Image(systemName: "person")
                     .font(.system(size: size * 0.36, weight: .medium))
-                    .foregroundColor(AppColors.onSurface.opacity(0.85))
+                    .foregroundColor(fallbackForeground ?? AppColors.onSurface.opacity(0.85))
             } else {
-                Text(initials.prefix(1).uppercased())
-                    .font(.system(size: size * 0.36, weight: .semibold))
-                    .foregroundColor(AppColors.onSurface.opacity(0.85))
+                Text(String(initials.prefix(2)).uppercased())
+                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .foregroundColor(fallbackForeground ?? AppColors.onSurface.opacity(0.85))
             }
         }
     }

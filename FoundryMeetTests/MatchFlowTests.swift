@@ -60,6 +60,15 @@ final class MatchRequestTests: XCTestCase {
         XCTAssertTrue(request(status: .declined).isDeclined)
         XCTAssertFalse(request(status: .withdrawn).isPending)
     }
+
+    func testSelfPairIsDetectedAndCollapsed() {
+        XCTAssertTrue(MatchRequest.isSelfPair("alice", "alice"))
+        XCTAssertFalse(MatchRequest.isSelfPair("alice", "bob"))
+
+        let selfRequest = request(requester: "alice", recipient: "alice")
+        XCTAssertEqual(selfRequest.participantIds, ["alice"])
+        XCTAssertEqual(selfRequest.id, "alice_alice")
+    }
 }
 
 final class CoffeeChatStateTests: XCTestCase {

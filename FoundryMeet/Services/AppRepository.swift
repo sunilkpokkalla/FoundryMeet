@@ -445,8 +445,10 @@ final class AppRepository: ObservableObject {
     ) async throws -> CoffeeChat {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
         guard match.isAccepted else { throw RepositoryError.matchNotAccepted }
+        guard match.requesterId != match.recipientId else { throw RepositoryError.selfRequest }
 
         let otherId = match.otherPartyId(for: userId)
+        guard otherId != userId else { throw RepositoryError.selfRequest }
         let chat = CoffeeChat(
             id: UUID().uuidString,
             userId: userId,
@@ -641,7 +643,8 @@ final class AppRepository: ObservableObject {
         chatId: String? = nil,
         threadId: String? = nil
     ) async throws {
-        let recipients = recipientIds.filter { !$0.isEmpty }
+        // Never notify the sender — blocks self-request / self-message noise.
+        let recipients = recipientIds.filter { !$0.isEmpty && $0 != userId }
         guard !recipients.isEmpty else { return }
 
         if usesLocalStore {
@@ -855,7 +858,7 @@ final class AppRepository: ObservableObject {
     /// as accepting theirs instead of opening a second request.
     func requestMatch(with candidate: DiscoveryCandidate, note: String = "") async throws {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
-        guard candidate.id != userId else { throw RepositoryError.invalidInput }
+        guard !MatchRequest.isSelfPair(userId, candidate.id) else { throw RepositoryError.selfRequest }
         if DemoPartner.isDemo(candidate.id) {
             try await connectWithDemoPartner(candidate, note: note)
             return
@@ -1029,6 +1032,7 @@ final class AppRepository: ObservableObject {
 
     func openOrCreateThread(with candidate: DiscoveryCandidate) async throws -> MessageThread {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
+        guard candidate.id != userId else { throw RepositoryError.selfRequest }
         let sortedIds = [userId, candidate.id].sorted()
         let threadId = sortedIds.joined(separator: "_")
 
@@ -1351,6 +1355,7 @@ enum RepositoryError: LocalizedError {
     case notFound
     case invalidInput
     case notAllowed
+    case selfRequest
     case duplicateRequest
     case requestAlreadyAnswered
     case matchNotAccepted
@@ -1364,6 +1369,7 @@ enum RepositoryError: LocalizedError {
         case .notFound: return "Item not found."
         case .invalidInput: return "Please enter a valid value."
         case .notAllowed: return "You can't do that on this request."
+        case .selfRequest: return "You can't send a coffee chat request to yourself."
         case .duplicateRequest: return "You already have a request open with this person."
         case .requestAlreadyAnswered: return "This request was already answered."
         case .matchNotAccepted: return "Wait for the request to be accepted before picking a time."

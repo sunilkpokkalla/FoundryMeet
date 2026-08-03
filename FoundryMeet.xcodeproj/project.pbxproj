@@ -53,6 +53,7 @@
 		D10C6156C70294636C18B585 /* LegalDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B58BB0100C614C917E06DFA /* LegalDocuments.swift */; };
 		D76596A8F8F8FAC2774F5CDD /* LegalDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E2366D6829AC0F89AD6D1A /* LegalDocumentView.swift */; };
 		E0F91EC570A2B8539AFC72DE /* NetworkingHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */; };
+		E4B81C0A92D14F6E8A7C3B21 /* HubLocationFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9C81B2D74E05F1A93D62C40 /* HubLocationFilter.swift */; };
 		E23AC0E0E0E1681F6BD1AAEE /* PhotoStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AD8BB63D42C2DE487CC423 /* PhotoStorageService.swift */; };
 		EEC2E53122AA9F0423D4A0B3 /* LocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214ED58AD5A199257A859B1 /* LocationTests.swift */; };
 		F4C8DA8610BD2F138B69696E /* AppChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78EA52054894AED4DB6749E /* AppChrome.swift */; };
@@ -74,6 +75,7 @@
 /* Begin PBXFileReference section */
 		033CE942D48E98BD6D91D55B /* SlotPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlotPicker.swift; sourceTree = "<group>"; };
 		0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkingHubView.swift; sourceTree = "<group>"; };
+		A9C81B2D74E05F1A93D62C40 /* HubLocationFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubLocationFilter.swift; sourceTree = "<group>"; };
 		039EF67B4A3D2DFCE2BB5947 /* ChipGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChipGrid.swift; sourceTree = "<group>"; };
 		0E9ED656935F2CFA85B548FB /* AvailabilityEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvailabilityEditorView.swift; sourceTree = "<group>"; };
 		1388872644E7D53B80FDA8BF /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
@@ -235,6 +237,7 @@
 				D8302D7DDCF5ABC376B506AB /* AppColors.swift */,
 				8B39764E724A6424013283BC /* AuthManager.swift */,
 				D6BE904340E1B8B150749CB9 /* AvailabilityModels.swift */,
+				A9C81B2D74E05F1A93D62C40 /* HubLocationFilter.swift */,
 				7B58BB0100C614C917E06DFA /* LegalDocuments.swift */,
 				4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */,
 				15FB52A16FD7BA04C1596EBC /* ProfileTaxonomy.swift */,
@@ -362,6 +365,7 @@
 				FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */,
 				69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */,
 				F643ABFFDEF2C504612EA54D /* GeoDistance.swift in Sources */,
+				E4B81C0A92D14F6E8A7C3B21 /* HubLocationFilter.swift in Sources */,
 				D76596A8F8F8FAC2774F5CDD /* LegalDocumentView.swift in Sources */,
 				D10C6156C70294636C18B585 /* LegalDocuments.swift in Sources */,
 				789173DD07273205323A1941 /* LocationField.swift in Sources */,
@@ -477,6 +481,7 @@
 				CODE_SIGN_ENTITLEMENTS = FoundryMeet/FoundryMeet.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
@@ -492,6 +497,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ambright.foundrymeet;
 				SDKROOT = iphoneos;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
@@ -507,6 +513,7 @@
 				CODE_SIGN_ENTITLEMENTS = FoundryMeet/FoundryMeet.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
@@ -522,6 +529,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ambright.foundrymeet;
 				SDKROOT = iphoneos;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
