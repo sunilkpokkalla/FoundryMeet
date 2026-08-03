@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DiscoveryView: View {
     @EnvironmentObject private var repository: AppRepository
+    @EnvironmentObject private var authManager: AuthManager
     @State private var showProfile = false
     @State private var showAvailability = false
     @State private var showInviteShare = false
@@ -129,6 +130,7 @@ struct DiscoveryView: View {
             .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
+                    .environmentObject(authManager)
             }
             .sheet(isPresented: $showAvailability) {
                 AvailabilityEditorView()

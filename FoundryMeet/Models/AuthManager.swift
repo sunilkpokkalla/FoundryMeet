@@ -130,6 +130,12 @@ class AuthManager: ObservableObject {
         guard let user = Auth.auth().currentUser else {
             throw RepositoryError.notSignedIn
         }
+        // Require a recent login before wiping data — otherwise a failed Auth
+        // delete would leave the user with no profile and no way back.
+        if let lastSignIn = user.metadata.lastSignInDate,
+           Date().timeIntervalSince(lastSignIn) > 5 * 60 {
+            throw RepositoryError.reauthenticationRequired
+        }
         try await repository.deleteAccountData()
         do {
             try await user.delete()

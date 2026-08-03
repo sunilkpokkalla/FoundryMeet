@@ -81,6 +81,7 @@ final class CoffeeChatStateTests: XCTestCase {
             setting: "Virtual",
             talkingPoints: "",
             notes: "",
+            privateNotes: [:],
             status: status,
             proposedById: proposedBy,
             respondedAt: nil,

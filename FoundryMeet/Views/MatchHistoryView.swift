@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MatchHistoryView: View {
     @EnvironmentObject private var repository: AppRepository
+    @EnvironmentObject private var authManager: AuthManager
     @State private var showProfile = false
 
     var body: some View {
@@ -69,8 +70,9 @@ struct MatchHistoryView: View {
                                                     chat: chat,
                                                     userId: repository.profile?.id ?? ""
                                                 )
-                                                if !chat.notes.isEmpty {
-                                                    Text(chat.notes)
+                                                let myNotes = chat.notes(for: repository.profile?.id ?? "")
+                                                if !myNotes.isEmpty {
+                                                    Text(myNotes)
                                                         .font(.system(size: 13))
                                                         .foregroundColor(AppColors.onSurfaceVariant)
                                                         .lineLimit(1)
@@ -95,6 +97,7 @@ struct MatchHistoryView: View {
             .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
+                    .environmentObject(authManager)
             }
             .task {
                 try? await repository.refreshAll()

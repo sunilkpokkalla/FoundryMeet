@@ -31,6 +31,8 @@ final class AppRepository: ObservableObject {
     private var userId: String?
     private(set) var usesLocalStore = false
     private var excludedCandidateIds: Set<String> = []
+    private var listeners: [ListenerRegistration] = []
+    private var messageListeners: [String: ListenerRegistration] = [:]
 
     private init() {}
 
@@ -100,12 +102,14 @@ final class AppRepository: ObservableObject {
                 profile = created
             }
             try await refreshAll()
+            startRealtimeSync()
         } catch {
             lastError = error.localizedDescription
         }
     }
 
     func clearSession() {
+        stopRealtimeSync()
         userId = nil
         profile = nil
         matchRequests = []
@@ -118,11 +122,103 @@ final class AppRepository: ObservableObject {
         lastError = nil
     }
 
+    /// Keeps matches / chats / threads live so the other person's accept shows
+    /// without manually switching tabs.
+    func startRealtimeSync() {
+        stopRealtimeSync()
+        guard let userId, !usesLocalStore else { return }
+
+        listeners.append(
+            db.collection("matches")
+                .whereField("participantIds", arrayContains: userId)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.matchRequests = (snapshot?.documents ?? [])
+                            .compactMap { MatchRequest(id: $0.documentID, firestoreData: $0.data()) }
+                            .sorted { $0.updatedAt > $1.updatedAt }
+                        let interactions = (try? await self.loadInteractions(userId: userId)) ?? []
+                        self.excludedCandidateIds = Set(interactions.map(\.candidateId))
+                            .union(self.matchRequests.filter { !$0.isDeclined }.map { $0.otherPartyId(for: userId) })
+                        await self.rebuildDiscoveryFeed()
+                    }
+                }
+        )
+
+        listeners.append(
+            db.collection("chats")
+                .whereField("participantIds", arrayContains: userId)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.chats = (snapshot?.documents ?? [])
+                            .compactMap { CoffeeChat(id: $0.documentID, firestoreData: $0.data()) }
+                            .sorted { ($0.startsAt ?? $0.createdAt) > ($1.startsAt ?? $1.createdAt) }
+                        await self.syncCalendarState()
+                    }
+                }
+        )
+
+        listeners.append(
+            db.collection("threads")
+                .whereField("participantIds", arrayContains: userId)
+                .addSnapshotListener { [weak self] snapshot, _ in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.threads = (snapshot?.documents ?? [])
+                            .compactMap { MessageThread(id: $0.documentID, firestoreData: $0.data()) }
+                            .sorted { $0.updatedAt > $1.updatedAt }
+                    }
+                }
+        )
+    }
+
+    func stopRealtimeSync() {
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
+        messageListeners.values.forEach { $0.remove() }
+        messageListeners.removeAll()
+    }
+
+    /// Live updates while a conversation is open.
+    func observeMessages(
+        threadId: String,
+        onChange: @escaping @MainActor ([ChatMessage]) -> Void
+    ) {
+        messageListeners[threadId]?.remove()
+        messageListeners[threadId] = nil
+
+        if usesLocalStore {
+            Task {
+                let messages = (try? await loadMessages(threadId: threadId)) ?? []
+                onChange(messages)
+            }
+            return
+        }
+
+        messageListeners[threadId] = db.collection("threads").document(threadId)
+            .collection("messages")
+            .order(by: "createdAt", descending: false)
+            .addSnapshotListener { snapshot, _ in
+                let messages = (snapshot?.documents ?? [])
+                    .compactMap { ChatMessage(id: $0.documentID, firestoreData: $0.data()) }
+                Task { @MainActor in
+                    onChange(messages)
+                }
+            }
+    }
+
+    func stopObservingMessages(threadId: String) {
+        messageListeners[threadId]?.remove()
+        messageListeners[threadId] = nil
+    }
+
     /// Wipes this user's stored profile data before Auth deletion. Shared chats
     /// with other people are left for the other participant's history.
     func deleteAccountData() async throws {
         guard let userId else { throw RepositoryError.notSignedIn }
 
+        stopRealtimeSync()
         await PhotoStorageService.deleteAvatar(userId: userId, useLocalStore: usesLocalStore)
 
         if usesLocalStore {
@@ -135,6 +231,19 @@ final class AppRepository: ObservableObject {
             try? writeLocal(network, key: "network_directory")
             UserDefaults.standard.removeObject(forKey: onboardingKey(for: userId))
             return
+        }
+
+        // Leave the network immediately, then remove personal data.
+        if var current = profile {
+            current.isDiscoverable = false
+            current.displayName = "Deleted user"
+            current.bio = nil
+            current.buildingIdea = nil
+            current.linkedInURL = nil
+            current.photoURL = nil
+            current.fcmTokens = []
+            current.email = ""
+            try? await saveProfile(current)
         }
 
         let interactions = try await db.collection("users").document(userId)
@@ -637,6 +746,10 @@ final class AppRepository: ObservableObject {
         chats = try await chatsTask
         networkProfiles = try await networkTask
         threads = try await threadsTask
+        // Keep live sync attached after every refresh (covers first launch races).
+        if listeners.isEmpty {
+            startRealtimeSync()
+        }
         excludedCandidateIds = Set(interactions.map(\.candidateId))
             .union(matchRequests.filter { !$0.isDeclined }.map { $0.otherPartyId(for: userId) })
         await rebuildDiscoveryFeed()
@@ -886,15 +999,17 @@ final class AppRepository: ObservableObject {
     }
 
     func updateChatNotes(chatId: String, notes: String) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
         guard var chat = chats.first(where: { $0.id == chatId }) else {
             throw RepositoryError.notFound
         }
-        chat.notes = notes
+        guard chat.participantIds.contains(userId) else { throw RepositoryError.notAllowed }
+        chat.privateNotes[userId] = notes
+        // Clear legacy shared notes once per-user storage is in use.
+        chat.notes = ""
         chat.updatedAt = Date()
         try await saveChat(chat)
-        if let index = chats.firstIndex(where: { $0.id == chatId }) {
-            chats[index] = chat
-        }
+        upsertChat(chat)
     }
 
     /// Records how the coffee went for this user. Each participant keeps their
@@ -1270,7 +1385,8 @@ extension UserProfile {
             "skills": skills,
             "credentials": credentials.map(\.firestoreData),
             "availability": availability.map(\.firestoreData),
-            "fcmTokens": fcmTokens,
+            // fcmTokens are written only by PushNotificationService via arrayUnion —
+            // never overwrite them from a profile save (that was wiping push).
             "isReviewer": isReviewer,
             "isDiscoverable": isDiscoverable,
             "onboardingCompleted": onboardingCompleted,
@@ -1475,6 +1591,7 @@ private extension CoffeeChat {
             "setting": setting,
             "talkingPoints": talkingPoints,
             "notes": notes,
+            "privateNotes": privateNotes,
             "status": status,
             "proposedById": proposedById,
             "inviteStatus": inviteStatus,
@@ -1513,6 +1630,7 @@ private extension CoffeeChat {
             setting: data["setting"] as? String ?? "Virtual",
             talkingPoints: data["talkingPoints"] as? String ?? "",
             notes: data["notes"] as? String ?? "",
+            privateNotes: data["privateNotes"] as? [String: String] ?? [:],
             status: data["status"] as? String ?? CoffeeChat.legacyConfirmedStatus,
             proposedById: data["proposedById"] as? String ?? userId,
             respondedAt: (data["respondedAt"] as? Timestamp)?.dateValue(),

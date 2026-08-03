@@ -72,6 +72,7 @@ struct SchedulingView: View {
             .hideSystemNavBar()
             .sheet(isPresented: $showProfile) {
                 ProfileView()
+                    .environmentObject(authManager)
             }
             .sheet(item: $matchToSchedule) { match in
                 ProposeTimeSheet(match: match) { message in

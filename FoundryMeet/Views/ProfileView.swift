@@ -25,7 +25,6 @@ struct ProfileView: View {
     @State private var unrecognizedStages: [String] = []
     @State private var isDiscoverable = true
     @State private var statusMessage = ""
-    @State private var showMessages = false
     @State private var showAddCredential = false
     @State private var showAvailability = false
     @State private var showReviewQueue = false
@@ -78,9 +77,6 @@ struct ProfileView: View {
                 }
             }
             .hideSystemNavBar()
-            .sheet(isPresented: $showMessages) {
-                MessagesView()
-            }
             .sheet(isPresented: $showAvailability) {
                 AvailabilityEditorView()
                     .environmentObject(repository)
@@ -150,45 +146,46 @@ struct ProfileView: View {
     }
 
     private var accountHeader: some View {
-        HStack {
+        HStack(spacing: 12) {
             Button {
                 if isEditing {
                     isEditing = false
                 } else {
-                    loadDraft()
-                    isEditing = true
+                    dismiss()
                 }
             } label: {
-                Text(isEditing ? "Cancel" : "Edit")
-                    .font(.system(size: 15, weight: .medium))
+                Image(systemName: isEditing ? "xmark" : "chevron.down")
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppColors.onSurface)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(AppColors.surfaceContainerLowest))
+                    .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isEditing ? "Cancel editing" : "Close account")
 
-            Spacer()
-
-            Text("Account")
+            Text(isEditing ? "Edit profile" : "Account")
                 .font(.system(size: 17, weight: .semibold))
                 .tracking(-0.3)
                 .foregroundColor(AppColors.onSurface)
 
             Spacer()
 
-            Button {
-                if isEditing {
+            if isEditing {
+                Button("Save") {
                     saveProfile()
-                } else {
-                    dismiss()
                 }
-            } label: {
-                Text(isEditing ? "Save" : "Done")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(AppColors.onSurface)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(AppColors.onPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(AppColors.primary)
+                .clipShape(Capsule())
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 14)
+        .padding(.top, 12)
         .padding(.bottom, 12)
         .background(AppColors.surface)
         .overlay(alignment: .bottom) {
@@ -227,7 +224,7 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(repository.profile?.displayName ?? authManager.displayName)
                     .font(.system(size: 22, weight: .semibold))
                     .tracking(-0.4)
@@ -235,14 +232,30 @@ struct ProfileView: View {
                 Text(authManager.email)
                     .font(.system(size: 14))
                     .foregroundColor(AppColors.onSurfaceVariant)
-                Text("Tap photo to update")
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.secondary)
                 if let role = repository.profile?.role, !role.isEmpty {
                     Text(role)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.secondary)
-                        .padding(.top, 2)
+                }
+                if !isEditing {
+                    Button {
+                        loadDraft()
+                        isEditing = true
+                    } label: {
+                        Text("Edit profile")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppColors.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(AppColors.accentSoft.opacity(0.65))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                } else {
+                    Text("Tap photo to update")
+                        .font(.system(size: 12))
+                        .foregroundColor(AppColors.secondary)
                 }
             }
 
@@ -555,24 +568,11 @@ struct ProfileView: View {
             actionRow(title: "Availability", icon: "calendar") {
                 showAvailability = true
             }
-            actionRow(title: "Messages", icon: "bubble.left.and.bubble.right") {
-                showMessages = true
-            }
 
             if repository.profile?.isReviewer == true {
                 actionRow(title: "Credential review queue", icon: "checkmark.seal") {
                     showReviewQueue = true
                 }
-            }
-
-            actionRow(title: "Privacy Policy", icon: "hand.raised") {
-                legalDocument = .privacy
-            }
-            actionRow(title: "Terms of Use", icon: "doc.text") {
-                legalDocument = .terms
-            }
-            actionRow(title: "Support", icon: "questionmark.circle") {
-                legalDocument = .support
             }
 
             Button {
@@ -616,6 +616,26 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
             .disabled(isDeletingAccount)
+
+            // Quiet footer — App Review needs these reachable; History is the wrong home.
+            VStack(spacing: 10) {
+                Text("Legal & support")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(AppColors.onSurfaceVariant.opacity(0.8))
+
+                HStack(spacing: 14) {
+                    Button("Privacy") { legalDocument = .privacy }
+                    Text("·").foregroundColor(AppColors.onSurfaceVariant.opacity(0.5))
+                    Button("Terms") { legalDocument = .terms }
+                    Text("·").foregroundColor(AppColors.onSurfaceVariant.opacity(0.5))
+                    Button("Support") { legalDocument = .support }
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(AppColors.onSurfaceVariant)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)

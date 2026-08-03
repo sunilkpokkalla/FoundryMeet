@@ -106,7 +106,7 @@ struct MatchNotesView: View {
             )
         }
         .onAppear {
-            privateNotes = chat.notes
+            privateNotes = liveChat.notes(for: myId)
         }
         .onTapGesture {
             notesFocused = false

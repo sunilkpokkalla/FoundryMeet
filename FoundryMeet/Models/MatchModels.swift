@@ -120,7 +120,10 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var timeLabel: String
     var setting: String
     var talkingPoints: String
+    /// Legacy shared notes field — prefer `privateNotes`.
     var notes: String
+    /// Per-participant private notes. Only the owner should read/write their entry.
+    var privateNotes: [String: String] = [:]
     var status: String
     /// Who put the current time on the table. Changes on every reschedule.
     var proposedById: String
@@ -202,6 +205,13 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
 
     func outcome(for userId: String) -> MeetingOutcome? {
         outcomes[userId].flatMap(MeetingOutcome.init(rawValue:))
+    }
+
+    /// Private notes for this user. Falls back to legacy shared `notes` only when
+    /// no per-user entry exists yet (migration path).
+    func notes(for userId: String) -> String {
+        if let mine = privateNotes[userId] { return mine }
+        return notes
     }
 
     var needsOutcome: Bool {
