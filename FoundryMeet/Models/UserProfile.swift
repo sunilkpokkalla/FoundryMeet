@@ -151,8 +151,26 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     var createdAt: Date
 }
 
+extension UserProfile {
+    /// The first onboarding wrote a stage value that no longer exists, and it
+    /// also copied that value into `industry`. Both are repaired on read.
+    static func normalizedStages(_ stored: [String]) -> [String] {
+        stored.map { StartupStage.parse($0)?.rawValue ?? $0 }
+    }
+
+    static func normalizedIndustry(_ stored: String?) -> String? {
+        guard let stored, !stored.isEmpty else { return nil }
+        return StartupStage.parse(stored) == nil ? stored : nil
+    }
+}
+
 struct DiscoveryFilters: Equatable {
     var stage: String? = nil
-    var goal: String? = nil
     var industry: String? = nil
+    /// Narrow to people whose goal is the other side of your own.
+    var complementaryGoalsOnly: Bool = false
+
+    var isEmpty: Bool {
+        stage == nil && industry == nil && !complementaryGoalsOnly
+    }
 }

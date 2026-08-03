@@ -163,6 +163,41 @@ final class ProfileStageStorageTests: XCTestCase {
         XCTAssertEqual(profile.firestoreData["stage"] as? String, "Seed")
     }
 
+    /// The first onboarding offered "Series A+", which is not a case any more.
+    func testLegacyStageValueStillParses() {
+        XCTAssertEqual(StartupStage.parse("Series A+"), .seriesA)
+        XCTAssertEqual(StartupStage.parse("Idea"), .idea)
+        XCTAssertNil(StartupStage.parse("CTO @ Stealth"))
+    }
+
+    func testLegacyStageIsRepairedOnRead() {
+        let restored = UserProfile(id: "u1", firestoreData: ["email": "a@b.com", "stage": "Series A+"])
+        XCTAssertEqual(restored.stages, ["Series A"], "The stored value should be rewritten, not kept")
+    }
+
+    func testLegacyStageStillSatisfiesFilters() {
+        XCTAssertTrue(StartupStage.stages(["Series A+"], match: "Seed+"))
+    }
+
+    /// Onboarding used to copy the stage into `industry`, so existing documents
+    /// have "Idea" or "Seed" sitting in that field.
+    func testStageLeftInIndustryIsDiscardedOnRead() {
+        for leftover in ["Idea", "Seed", "Series A+"] {
+            let restored = UserProfile(id: "u1", firestoreData: ["email": "a@b.com", "industry": leftover])
+            XCTAssertNil(restored.industry, "\(leftover) is a stage, not an industry")
+        }
+    }
+
+    func testRealIndustriesSurviveTheRepair() {
+        let restored = UserProfile(id: "u1", firestoreData: ["email": "a@b.com", "industry": "Fintech"])
+        XCTAssertEqual(restored.industry, "Fintech")
+    }
+
+    func testUnknownStoredStagesAreLeftAlone() {
+        let restored = UserProfile(id: "u1", firestoreData: ["email": "a@b.com", "stages": ["Seed", "Mystery"]])
+        XCTAssertEqual(restored.stages, ["Seed", "Mystery"], "Nothing should be silently dropped on read")
+    }
+
     func testStageSummaryReadsAsASentence() {
         var profile = UserProfile(id: "u1", email: "a@b.com")
         XCTAssertEqual(profile.stageSummary, "—")

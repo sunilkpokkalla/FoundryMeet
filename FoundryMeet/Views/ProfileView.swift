@@ -12,10 +12,14 @@ struct ProfileView: View {
     @State private var role = ""
     @State private var place: ResolvedPlace?
     @State private var stages: Set<StartupStage> = []
-    @State private var goal = ""
+    @State private var goal: NetworkingGoal?
     @State private var industry: Industry?
     @State private var bio = ""
     @State private var skills: Set<Skill> = []
+    /// Stored values with no chip to represent them. Carried through a save so
+    /// editing an unrelated field cannot quietly delete them.
+    @State private var unrecognizedSkills: [String] = []
+    @State private var unrecognizedStages: [String] = []
     @State private var isDiscoverable = true
     @State private var statusMessage = ""
     @State private var showMessages = false
@@ -225,7 +229,20 @@ struct ProfileView: View {
             VStack(spacing: 0) {
                 editField("Name", text: $displayName)
                 divider
-                editField("Role", text: $role)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Role")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    ChipGrid(
+                        items: FounderRole.allCases,
+                        title: { $0.title },
+                        icon: { $0.icon },
+                        isSelected: { parsedRole == $0 },
+                        onTap: { selectRole($0) },
+                        minWidth: 140
+                    )
+                }
+                .padding(.vertical, 12)
                 divider
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Location")
@@ -248,7 +265,20 @@ struct ProfileView: View {
                 }
                 .padding(.vertical, 12)
                 divider
-                editField("Goal", text: $goal)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Goal")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    ChipGrid(
+                        items: editedRole.goals,
+                        title: { $0.title },
+                        icon: { $0.icon },
+                        isSelected: { goal == $0 },
+                        onTap: { goal = goal == $0 ? nil : $0 },
+                        minWidth: 150
+                    )
+                }
+                .padding(.vertical, 12)
                 divider
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Industry")
@@ -588,12 +618,25 @@ struct ProfileView: View {
         displayName = profile.displayName
         role = profile.role ?? ""
         place = profile.place
-        stages = Set(profile.stages.compactMap(StartupStage.init(rawValue:)))
-        goal = profile.goal ?? ""
+        stages = Set(profile.stages.compactMap(StartupStage.parse))
+        unrecognizedStages = profile.stages.filter { StartupStage.parse($0) == nil }
+        goal = profile.goal.flatMap(NetworkingGoal.init(rawValue:))
         industry = profile.industry.flatMap(Industry.init(rawValue:))
         bio = profile.bio ?? ""
         skills = Set(profile.skills.compactMap(Skill.parse))
+        unrecognizedSkills = profile.skills.filter { Skill.parse($0) == nil }
         isDiscoverable = profile.isDiscoverable
+    }
+
+    /// Changing role here drops the answers that no longer exist for it, the
+    /// same way onboarding does.
+    private func selectRole(_ next: FounderRole) {
+        role = next.rawValue
+        stages = next.retainingValidStages(from: stages)
+        skills = next.retainingValidSkills(from: skills)
+        if let current = goal, !next.goals.contains(current) {
+            goal = nil
+        }
     }
 
     private func saveProfile() {
@@ -603,11 +646,13 @@ struct ProfileView: View {
         profile.location = place?.displayName
         profile.latitude = place?.latitude
         profile.longitude = place?.longitude
-        profile.stages = editedRole.stages.filter(stages.contains).map(\.rawValue)
-        profile.goal = goal.isEmpty ? nil : goal
+        // Save what was actually picked, not what the current role offers: an
+        // off-taxonomy role falls back to Builder and would strip valid answers.
+        profile.stages = StartupStage.allCases.filter(stages.contains).map(\.rawValue) + unrecognizedStages
+        profile.goal = goal?.rawValue
         profile.industry = industry?.rawValue
         profile.bio = bio.isEmpty ? nil : bio
-        profile.skills = editedRole.skills.filter(skills.contains).map(\.rawValue)
+        profile.skills = Skill.allCases.filter(skills.contains).map(\.rawValue) + unrecognizedSkills
         profile.isDiscoverable = isDiscoverable
         Task {
             do {

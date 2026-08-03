@@ -239,12 +239,19 @@ enum StartupStage: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The first version of onboarding offered "Series A+", which no longer
+    /// exists now that Series A and Series B+ are separate rungs.
+    static func parse(_ stored: String) -> StartupStage? {
+        if let exact = StartupStage(rawValue: stored) { return exact }
+        return stored == "Series A+" ? .seriesA : nil
+    }
+
     /// Does a person's stages satisfy a Discover filter such as "Seed" or "Seed+"?
     static func stages(_ stored: [String], match filter: String) -> Bool {
         let trimmed = filter.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return true }
 
-        let picked = stored.compactMap(StartupStage.init(rawValue:))
+        let picked = stored.compactMap(StartupStage.parse)
         guard !picked.isEmpty else { return false }
         if picked.contains(.any) { return true }
 
@@ -327,5 +334,29 @@ enum NetworkingGoal: String, CaseIterable, Identifiable {
         case .adviseAndMentor: return [.advisor, .investor]
         case .meetFounders: return [.advisor, .investor]
         }
+    }
+
+    /// The other side of this goal. Someone raising money wants to meet the
+    /// people writing cheques, not other people raising money. Only looking for
+    /// a cofounder is its own counterpart. These pairings are mutual.
+    var counterparts: [NetworkingGoal] {
+        switch self {
+        case .findCofounder: return [.findCofounder, .meetFounders]
+        case .hireEarlyTeam: return [.joinStartup]
+        case .joinStartup: return [.hireEarlyTeam]
+        case .raiseFunding: return [.meetFounders]
+        case .getAdvice: return [.adviseAndMentor]
+        case .adviseAndMentor: return [.getAdvice]
+        case .meetFounders: return [.raiseFunding, .findCofounder]
+        }
+    }
+
+    /// Would these two people be useful to each other?
+    static func areComplementary(_ mine: String?, _ theirs: String?) -> Bool {
+        guard
+            let mine = mine.flatMap(NetworkingGoal.init(rawValue:)),
+            let theirs = theirs.flatMap(NetworkingGoal.init(rawValue:))
+        else { return false }
+        return mine.counterparts.contains(theirs)
     }
 }

@@ -610,20 +610,28 @@ final class AppRepository: ObservableObject {
         if let stage = filters.stage, !stage.isEmpty {
             candidates = candidates.filter { StartupStage.stages($0.stages, match: stage) }
         }
-        if let goal = filters.goal, !goal.isEmpty {
-            candidates = candidates.filter {
-                $0.goal?.localizedCaseInsensitiveContains(goal) == true
-                    || $0.desc.localizedCaseInsensitiveContains(goal)
-                    || $0.tags.contains(where: { $0.localizedCaseInsensitiveContains(goal) })
-            }
-        }
         if let industry = filters.industry, !industry.isEmpty {
             candidates = candidates.filter {
                 $0.industry.localizedCaseInsensitiveContains(industry)
                     || $0.tags.contains(where: { $0.localizedCaseInsensitiveContains(industry) })
             }
         }
-        discoveryFeed = candidates
+
+        // Without a goal of your own there is nothing to complement, so the
+        // filter becomes a no-op rather than blanking the feed.
+        let myGoal = profile?.goal.flatMap(NetworkingGoal.init(rawValue:))?.rawValue
+        if filters.complementaryGoalsOnly, myGoal != nil {
+            candidates = candidates.filter { NetworkingGoal.areComplementary(myGoal, $0.goal) }
+        }
+        // People who want the other side of what you want come first, whether or
+        // not the filter is on.
+        discoveryFeed = candidates.enumerated()
+            .sorted { lhs, rhs in
+                let lhsFits = NetworkingGoal.areComplementary(myGoal, lhs.element.goal)
+                let rhsFits = NetworkingGoal.areComplementary(myGoal, rhs.element.goal)
+                return lhsFits == rhsFits ? lhs.offset < rhs.offset : lhsFits
+            }
+            .map(\.element)
     }
 
     func dismissCandidate(_ candidate: DiscoveryCandidate) async throws {
@@ -1117,11 +1125,13 @@ extension UserProfile {
             latitude: data["latitude"] as? Double,
             longitude: data["longitude"] as? Double,
             // Documents written before multi-stage support only carry `stage`.
-            stages: data["stages"] as? [String] ?? [data["stage"] as? String].compactMap { $0 },
+            stages: UserProfile.normalizedStages(
+                data["stages"] as? [String] ?? [data["stage"] as? String].compactMap { $0 }
+            ),
             skills: data["skills"] as? [String] ?? [],
             goal: data["goal"] as? String,
             bio: data["bio"] as? String,
-            industry: data["industry"] as? String,
+            industry: UserProfile.normalizedIndustry(data["industry"] as? String),
             credentials: credentialMaps.compactMap(VerifiedCredential.init(firestoreData:)),
             availability: windows.isEmpty ? AvailabilityWindow.defaultWorkWeek : windows,
             photoURL: data["photoURL"] as? String,

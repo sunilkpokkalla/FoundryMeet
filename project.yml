@@ -66,7 +66,7 @@ targets:
         NSPhotoLibraryUsageDescription: FoundryMeet needs photo access so you can set a profile picture.
         CFBundleURLTypes:
           - CFBundleURLSchemes:
-              - com.googleusercontent.apps.831784077430-neuo5eqbs106obig2v87qrcmlvqea2s0
+              - com.googleusercontent.apps.557443174588-e6d3cslgqabaivuh1ib8d2spu11un4er
   FoundryMeetTests:
     type: bundle.unit-test
     platform: iOS

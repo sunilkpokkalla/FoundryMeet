@@ -35,27 +35,38 @@ struct DiscoveryView: View {
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
-                                    FilterChip(
-                                        text: "Stage: Seed+",
-                                        icon: "slider.horizontal.3",
-                                        isSelected: repository.filters.stage == "Seed+"
-                                    ) {
-                                        toggleFilter(stage: "Seed+")
+                                    if let goal = myGoal {
+                                        FilterChip(
+                                            text: "Can help me \(goal.title.lowercased())",
+                                            icon: "target",
+                                            isSelected: repository.filters.complementaryGoalsOnly
+                                        ) {
+                                            var next = repository.filters
+                                            next.complementaryGoalsOnly.toggle()
+                                            repository.setFilters(next)
+                                        }
                                     }
-                                    FilterChip(
-                                        text: "Goal: Fundraising",
-                                        isSelected: repository.filters.goal == "Fundraising"
-                                    ) {
-                                        toggleFilter(goal: "Fundraising")
+                                    if let stage = myStage {
+                                        FilterChip(
+                                            text: "Stage: \(stage)",
+                                            icon: "slider.horizontal.3",
+                                            isSelected: repository.filters.stage == stage
+                                        ) {
+                                            toggleFilter(stage: stage)
+                                        }
                                     }
-                                    FilterChip(
-                                        text: "Industry: AI/ML",
-                                        isSelected: repository.filters.industry == "AI"
-                                    ) {
-                                        toggleFilter(industry: "AI")
+                                    if let industry = myIndustry {
+                                        FilterChip(
+                                            text: "Industry: \(industry)",
+                                            isSelected: repository.filters.industry == industry
+                                        ) {
+                                            toggleFilter(industry: industry)
+                                        }
                                     }
-                                    FilterChip(text: "Clear", isSelected: false) {
-                                        repository.setFilters(DiscoveryFilters())
+                                    if !repository.filters.isEmpty {
+                                        FilterChip(text: "Clear", isSelected: false) {
+                                            repository.setFilters(DiscoveryFilters())
+                                        }
                                     }
                                 }
                                 .padding(.horizontal, 24)
@@ -158,13 +169,24 @@ struct DiscoveryView: View {
         }
     }
 
-    private func toggleFilter(stage: String? = nil, goal: String? = nil, industry: String? = nil) {
+    /// Filters describe you, not an arbitrary segment, so they are built from
+    /// your own profile rather than hardcoded here.
+    private var myGoal: NetworkingGoal? {
+        repository.profile?.goal.flatMap(NetworkingGoal.init(rawValue:))
+    }
+
+    private var myStage: String? {
+        repository.profile?.stages.first
+    }
+
+    private var myIndustry: String? {
+        repository.profile?.industry
+    }
+
+    private func toggleFilter(stage: String? = nil, industry: String? = nil) {
         var next = repository.filters
         if let stage {
             next.stage = next.stage == stage ? nil : stage
-        }
-        if let goal {
-            next.goal = next.goal == goal ? nil : goal
         }
         if let industry {
             next.industry = next.industry == industry ? nil : industry

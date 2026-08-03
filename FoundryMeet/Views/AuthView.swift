@@ -151,6 +151,7 @@ struct AuthView: View {
                             )
                             .cornerRadius(12)
                         }
+                        .disabled(isLoading)
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 40)
@@ -270,6 +271,7 @@ struct AuthView: View {
             if let error {
                 DispatchQueue.main.async {
                     self.isLoading = false
+                    // User dismissed the sheet — not an error worth showing.
                     if (error as NSError).code == GIDSignInError.canceled.rawValue {
                         return
                     }
@@ -305,11 +307,17 @@ struct AuthView: View {
     }
 
     private func topViewController() -> UIViewController? {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive }
         let window = scenes
             .flatMap(\.windows)
             .first(where: \.isKeyWindow)
             ?? scenes.first?.windows.first
+            ?? UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+                .first
         var top = window?.rootViewController
         while let presented = top?.presentedViewController {
             top = presented
