@@ -35,12 +35,13 @@ struct MatchHistoryView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 16) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Match History")
+                                    Text("Coffee chats")
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundColor(AppColors.onSurface)
-                                    Text("Notes and past coffee chats.")
-                                        .font(.system(size: 16))
+                                    Text("Upcoming and past meetings — open one to confirm, reschedule, or jot private notes.")
+                                        .font(.system(size: 15))
                                         .foregroundColor(AppColors.onSurfaceVariant)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                                 .padding(.horizontal, 4)
                                 .padding(.top, 8)

@@ -1,15 +1,17 @@
 import SwiftUI
 
+/// Detail for one coffee chat: status, confirm/cancel, private reminders, outcome.
 struct MatchNotesView: View {
     let chat: CoffeeChat
     @ObservedObject private var repository = AppRepository.shared
-    @State private var notes: String = ""
+    @State private var privateNotes: String = ""
     @State private var isSaving = false
     @State private var statusMessage = ""
     @State private var errorMessage = ""
     @State private var showReschedule = false
     @State private var showCancelPrompt = false
     @State private var cancellationReason = ""
+    @FocusState private var notesFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
     private var myId: String { repository.profile?.id ?? "" }
@@ -20,17 +22,24 @@ struct MatchNotesView: View {
         repository.chats.first { $0.id == chat.id } ?? chat
     }
 
+    private var otherName: String {
+        liveChat.otherPartyName(for: myId)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerSection
 
                 if !liveChat.talkingPoints.isEmpty {
-                    labelledBox("TALKING POINTS", text: liveChat.talkingPoints)
+                    infoCard(
+                        title: "What you planned to talk about",
+                        body: liveChat.talkingPoints
+                    )
                 }
 
                 if let reason = liveChat.cancellationReason, liveChat.isCancelled {
-                    labelledBox("CANCELLATION REASON", text: reason)
+                    infoCard(title: "Why it was cancelled", body: reason)
                 }
 
                 actionsSection
@@ -39,60 +48,29 @@ struct MatchNotesView: View {
                     outcomeSection
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("NOTES")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(AppColors.onSurfaceVariant)
-                    TextEditor(text: $notes)
-                        .frame(minHeight: 180)
-                        .padding(12)
-                        .background(AppColors.surfaceContainerLowest)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                }
+                privateNotesSection
 
                 if !statusMessage.isEmpty {
                     Text(statusMessage)
-                        .font(.system(size: 13))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.secondary)
                 }
                 if !errorMessage.isEmpty {
                     Text(errorMessage)
                         .font(.system(size: 13))
-                        .foregroundColor(.red)
+                        .foregroundColor(Color(hex: 0xB42318))
                 }
-
-                Button(action: saveNotes) {
-                    HStack {
-                        if isSaving {
-                            ProgressView()
-                                .tint(AppColors.onPrimary)
-                        } else {
-                            Text("Save Notes")
-                                .font(.system(size: 16, weight: .semibold))
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(AppColors.primary)
-                    .foregroundColor(AppColors.onPrimary)
-                    .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
-                .disabled(isSaving)
             }
-            .padding(24)
+            .padding(20)
+            .padding(.bottom, 32)
         }
         .background(AppColors.surface.ignoresSafeArea())
-        .navigationTitle("Match Notes")
+        .navigationTitle(otherName)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showReschedule) {
             SlotPickerSheet(
                 title: "New time",
-                subtitle: "Pick another slot for your chat with \(liveChat.otherPartyName(for: myId)). They'll be asked to confirm it.",
+                subtitle: "Pick another slot with \(otherName). They’ll be asked to confirm.",
                 confirmTitle: "Propose new time"
             ) { slot in
                 try await repository.rescheduleChat(
@@ -105,50 +83,144 @@ struct MatchNotesView: View {
                 statusMessage = "New time sent."
             }
         }
-        .alert("Cancel this chat?", isPresented: $showCancelPrompt) {
-            TextField("Reason (optional)", text: $cancellationReason)
-            Button("Keep it", role: .cancel) {}
-            Button("Cancel chat", role: .destructive) {
-                perform("Chat cancelled.") {
-                    try await repository.cancelChat(liveChat, reason: cancellationReason)
+        .sheet(isPresented: $showCancelPrompt) {
+            AppFormSheet(
+                title: "Cancel this coffee chat?",
+                message: "This removes the calendar entry for both of you.",
+                fields: [
+                    AppFormField(
+                        label: "Reason (optional)",
+                        placeholder: "e.g. Schedule conflict",
+                        text: $cancellationReason
+                    )
+                ],
+                cancelTitle: "Keep chat",
+                confirmTitle: "Cancel chat",
+                isDestructive: true,
+                onCancel: { cancellationReason = "" },
+                onConfirm: {
+                    perform("Chat cancelled.") {
+                        try await repository.cancelChat(liveChat, reason: cancellationReason)
+                    }
                 }
-            }
-        } message: {
-            Text("Both of you lose the calendar entry and the reminder.")
+            )
         }
         .onAppear {
-            notes = chat.notes
+            privateNotes = chat.notes
+        }
+        .onTapGesture {
+            notesFocused = false
         }
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(liveChat.otherPartyName(for: myId))
-                .font(.system(size: 24, weight: .bold))
+        VStack(alignment: .leading, spacing: 10) {
+            ChatStatusBadge(chat: liveChat, userId: myId)
+
+            Text(otherName)
+                .font(.system(size: 26, weight: .semibold))
+                .tracking(-0.4)
                 .foregroundColor(AppColors.onSurface)
-            Text(liveChat.candidateRole)
-                .font(.system(size: 15))
-                .foregroundColor(AppColors.onSurfaceVariant)
-            Text("\(liveChat.dayLabel) · \(liveChat.timeLabel) · \(liveChat.setting)")
+
+            if !liveChat.candidateRole.isEmpty {
+                Text(liveChat.candidateRole)
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.onSurfaceVariant)
+            }
+
+            Label("\(liveChat.dayLabel) · \(liveChat.timeLabel)", systemImage: "calendar")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(AppColors.secondary)
-            ChatStatusBadge(chat: liveChat, userId: myId)
+
+            Label(liveChat.setting, systemImage: "cup.and.saucer.fill")
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.onSurfaceVariant)
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surfaceContainerLowest)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
+    }
+
+    private var privateNotesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your private notes")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(AppColors.onSurface)
+
+            Text("Only you see these — reminders, intros, or follow-ups after the coffee.")
+                .font(.system(size: 13))
+                .foregroundColor(AppColors.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ZStack(alignment: .topLeading) {
+                if privateNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("e.g. Introduced to their CTO. Follow up next week.")
+                        .font(.system(size: 15))
+                        .foregroundColor(AppColors.onSurfaceVariant.opacity(0.7))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 18)
+                        .allowsHitTesting(false)
+                }
+
+                TextEditor(text: $privateNotes)
+                    .focused($notesFocused)
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.onSurface)
+                    .scrollContentBackground(.hidden)
+                    .padding(12)
+                    .frame(minHeight: 140)
+            }
+            .background(AppColors.surfaceContainerLowest)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(notesFocused ? AppColors.secondary.opacity(0.45) : AppColors.hairline, lineWidth: 1)
+            )
+
+            Button(action: saveNotes) {
+                HStack {
+                    if isSaving {
+                        ProgressView().tint(AppColors.onPrimary)
+                    } else {
+                        Text(privateNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                             ? "Save"
+                             : "Save notes")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .background(AppColors.primary)
+                .foregroundColor(AppColors.onPrimary)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surfaceContainerLow)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var outcomeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("HOW DID IT GO?")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(AppColors.onSurfaceVariant)
+            Text("How did the coffee go?")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(AppColors.onSurface)
 
             if let existing = liveChat.outcome(for: myId) {
                 Text("You marked this \(existing.title.lowercased()).")
-                    .font(.system(size: 15))
-                    .foregroundColor(AppColors.onSurface)
-            } else {
-                Text("A quick signal helps the network learn who is worth meeting.")
                     .font(.system(size: 14))
+                    .foregroundColor(AppColors.onSurfaceVariant)
+            } else {
+                Text("Optional — helps you remember who was worth meeting.")
+                    .font(.system(size: 13))
                     .foregroundColor(AppColors.onSurfaceVariant)
 
                 HStack(spacing: 8) {
@@ -163,8 +235,12 @@ struct MatchNotesView: View {
                                 .foregroundColor(AppColors.onSurface)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .background(AppColors.surfaceContainerHigh)
-                                .cornerRadius(10)
+                                .background(AppColors.surfaceContainerLowest)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(AppColors.hairline, lineWidth: 1)
+                                )
                         }
                         .buttonStyle(.plain)
                     }
@@ -173,23 +249,32 @@ struct MatchNotesView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.surfaceContainerLow)
-        .cornerRadius(12)
+        .background(AppColors.surfaceContainerLowest)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
     }
 
     @ViewBuilder
     private var actionsSection: some View {
         let chat = liveChat
         if chat.awaitsResponse(from: myId) {
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
+            VStack(spacing: 10) {
+                Text("They suggested this time")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(AppColors.onSurfaceVariant)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 10) {
                     actionButton("Decline", isPrimary: false) {
                         perform("Time declined.") {
                             try await repository.respondToChat(chat, accept: false)
                         }
                     }
                     actionButton("Confirm", isPrimary: true) {
-                        perform("Confirmed and added to your calendar.") {
+                        perform("Confirmed — added to your calendar.") {
                             try await repository.respondToChat(chat, accept: true)
                         }
                     }
@@ -199,8 +284,8 @@ struct MatchNotesView: View {
                 }
             }
         } else if chat.isActive {
-            HStack(spacing: 12) {
-                actionButton("Cancel chat", isPrimary: false) {
+            HStack(spacing: 10) {
+                actionButton("Cancel", isPrimary: false) {
                     showCancelPrompt = true
                 }
                 actionButton("Reschedule", isPrimary: false) {
@@ -210,19 +295,23 @@ struct MatchNotesView: View {
         }
     }
 
-    private func labelledBox(_ title: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func infoCard(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(AppColors.onSurfaceVariant)
-            Text(text)
+            Text(body)
                 .font(.system(size: 15))
                 .foregroundColor(AppColors.onSurface)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.surfaceContainerLow)
-        .cornerRadius(12)
+        .background(AppColors.surfaceContainerLowest)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
     }
 
     private func actionButton(_ title: String, isPrimary: Bool, action: @escaping () -> Void) -> some View {
@@ -232,8 +321,12 @@ struct MatchNotesView: View {
                 .foregroundColor(isPrimary ? AppColors.onPrimary : AppColors.onSurface)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(isPrimary ? AppColors.primary : AppColors.surfaceContainerHigh)
-                .cornerRadius(12)
+                .background(isPrimary ? AppColors.primary : AppColors.surfaceContainerLowest)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(isPrimary ? Color.clear : AppColors.hairline, lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
     }
@@ -252,13 +345,14 @@ struct MatchNotesView: View {
     }
 
     private func saveNotes() {
+        notesFocused = false
         isSaving = true
         statusMessage = ""
         errorMessage = ""
         Task {
             do {
-                try await repository.updateChatNotes(chatId: chat.id, notes: notes)
-                statusMessage = "Notes saved."
+                try await repository.updateChatNotes(chatId: chat.id, notes: privateNotes)
+                statusMessage = "Notes saved — only you can see them."
             } catch {
                 errorMessage = error.localizedDescription
             }

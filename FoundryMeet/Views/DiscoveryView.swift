@@ -158,7 +158,7 @@ struct DiscoveryView: View {
             case .linkedIn: return "Add LinkedIn"
             case .building: return "Say what you’re building"
             case .availability: return "Confirm coffee-chat hours"
-            case .invite: return "Invite someone in your city"
+            case .invite: return "Invite founders in your city"
             }
         }
 
@@ -212,6 +212,14 @@ struct DiscoveryView: View {
                     earlyMemberRow(step)
                 }
                 .buttonStyle(.plain)
+            }
+
+            if earlyMemberSteps.contains(.invite) {
+                Text("Invite opens share — the invite step clears only after at least 3 people join your network, not when you send the message.")
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.onSurfaceVariant)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
             }
         }
         .padding(16)
@@ -355,6 +363,13 @@ struct DiscoveryView: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 4)
+
+            Text("Sharing invites them to join. This list fills as people sign up — not when you tap Invite.")
+                .font(.system(size: 12))
+                .foregroundColor(AppColors.onSurfaceVariant)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+                .padding(.top, 2)
 
             if !repository.filters.isDefault {
                 Button("Reset filters") {

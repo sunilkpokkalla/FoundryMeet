@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
+@MainActor
 struct ProfileView: View {
     @EnvironmentObject private var authManager: AuthManager
     @ObservedObject private var repository = AppRepository.shared
@@ -91,34 +92,55 @@ struct ProfileView: View {
             .sheet(item: $legalDocument) { document in
                 LegalDocumentView(document: document)
             }
-            .alert("Delete Account?", isPresented: $showDeleteConfirm) {
-                Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    Task { await deleteAccount() }
-                }
-            } message: {
-                Text("This permanently removes your FoundryMeet account and profile data. You may need to sign in again first if Apple or Google asks for a recent login.")
+            .sheet(isPresented: $showDeleteConfirm) {
+                AppConfirmSheet(
+                    title: "Delete account?",
+                    message: "This permanently removes your FoundryMeet account and profile data. Your Apple or Google account stays intact. You may need to sign in again first if they ask for a recent login.",
+                    cancelTitle: "Keep account",
+                    confirmTitle: "Delete account",
+                    isDestructive: true,
+                    onCancel: {},
+                    onConfirm: {
+                        Task { await deleteAccount() }
+                    }
+                )
             }
-            .alert("Add credential", isPresented: $showAddCredential) {
-                TextField("Title", text: $credTitle)
-                TextField("Issuer", text: $credIssuer)
-                TextField("URL", text: $credURL)
-                Button("Cancel", role: .cancel) {}
-                Button("Add") {
-                    Task {
-                        try? await repository.addCredential(
-                            title: credTitle,
-                            issuer: credIssuer,
-                            url: credURL
+            .sheet(isPresented: $showAddCredential) {
+                AppFormSheet(
+                    title: "Add credential",
+                    message: "Links stay pending until a reviewer verifies them.",
+                    fields: [
+                        AppFormField(label: "Title", placeholder: "e.g. B.S. Computer Science", text: $credTitle),
+                        AppFormField(label: "Issuer", placeholder: "e.g. Stanford", text: $credIssuer),
+                        AppFormField(
+                            label: "URL",
+                            placeholder: "https://…",
+                            text: $credURL,
+                            keyboard: .URL,
+                            autocapitalize: false
                         )
+                    ],
+                    cancelTitle: "Cancel",
+                    confirmTitle: "Submit",
+                    onCancel: {
                         credTitle = ""
                         credIssuer = ""
                         credURL = ""
-                        statusMessage = "Credential submitted for review."
+                    },
+                    onConfirm: {
+                        Task {
+                            try? await repository.addCredential(
+                                title: credTitle,
+                                issuer: credIssuer,
+                                url: credURL
+                            )
+                            credTitle = ""
+                            credIssuer = ""
+                            credURL = ""
+                            statusMessage = "Credential submitted for review."
+                        }
                     }
-                }
-            } message: {
-                Text("Links are marked pending until a reviewer verifies them.")
+                )
             }
             .onChange(of: photoItem) { item in
                 guard let item else { return }
