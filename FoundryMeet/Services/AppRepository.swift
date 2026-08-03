@@ -150,7 +150,13 @@ final class AppRepository: ObservableObject {
         next.updatedAt = Date()
         try await saveProfile(next)
         profile = next
-        try await refreshAll()
+        // A failed feed refresh must not look like the save itself failed —
+        // availability and profile edits already landed.
+        do {
+            try await refreshAll()
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     func addCredential(title: String, issuer: String, url: String) async throws {
