@@ -27,6 +27,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.</string>
 	<key>NSCalendarsUsageDescription</key>

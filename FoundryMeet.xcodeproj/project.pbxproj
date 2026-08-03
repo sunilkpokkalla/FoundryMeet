@@ -18,6 +18,7 @@
 		17B4A2B3AA784B964A7903B0 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = E6D10DC36E5A374E2D039F48 /* FirebaseAnalytics */; };
 		26F9D337DB45A4B332487D85 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 809C84BC925A5E333FEB86C9 /* GoogleSignInSwift */; };
 		2BBB68BCFA19E20F69F33A53 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DBFEA2849FEF2171849697 /* ProfileView.swift */; };
+		2FAF758C635260F459538237 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D3839EA29840F52AE4351179 /* PrivacyInfo.xcprivacy */; };
 		30F52958725BA2855E943DD8 /* GeoDistanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30719114F11A9A8A785BE232 /* GeoDistanceTests.swift */; };
 		319AAA99038305B843249B53 /* ChipGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039EF67B4A3D2DFCE2BB5947 /* ChipGrid.swift */; };
 		332B727CD91178F7F05F384B /* AvailabilityEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168055766154EE0EC298438F /* AvailabilityEngine.swift */; };
@@ -48,6 +49,8 @@
 		B5014D2F4E72B4E3FFF6CEAE /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC63B2A9B7E5338E3AE9FFC4 /* PushNotificationService.swift */; };
 		C1519AA794C01D1F8C89BE62 /* CalendarInviteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A92E9CBEFBCC318A343238 /* CalendarInviteService.swift */; };
 		CC517F9D5639157B7495ADBF /* MatchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */; };
+		D10C6156C70294636C18B585 /* LegalDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B58BB0100C614C917E06DFA /* LegalDocuments.swift */; };
+		D76596A8F8F8FAC2774F5CDD /* LegalDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E2366D6829AC0F89AD6D1A /* LegalDocumentView.swift */; };
 		E0F91EC570A2B8539AFC72DE /* NetworkingHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */; };
 		E23AC0E0E0E1681F6BD1AAEE /* PhotoStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AD8BB63D42C2DE487CC423 /* PhotoStorageService.swift */; };
 		EEC2E53122AA9F0423D4A0B3 /* LocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5214ED58AD5A199257A859B1 /* LocationTests.swift */; };
@@ -88,6 +91,8 @@
 		65DBFEA2849FEF2171849697 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		68D8E06304F89A84341E7A92 /* FoundryMeet.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoundryMeet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		7B58BB0100C614C917E06DFA /* LegalDocuments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalDocuments.swift; sourceTree = "<group>"; };
+		82E2366D6829AC0F89AD6D1A /* LegalDocumentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalDocumentView.swift; sourceTree = "<group>"; };
 		8B39764E724A6424013283BC /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		8C88E22C8C7EC98421373CA8 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		9B56CAEB0BBA01B3DC11AA3B /* GeoDistance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDistance.swift; sourceTree = "<group>"; };
@@ -105,6 +110,7 @@
 		CBBFAEB13C765A5C27FECF8F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchHistoryView.swift; sourceTree = "<group>"; };
 		CF97FF73C70591A9DA2734C2 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
+		D3839EA29840F52AE4351179 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D42093543269A721723F2C71 /* AppRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRepository.swift; sourceTree = "<group>"; };
 		D4E876435131E16038D1CF7E /* StartupStageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupStageTests.swift; sourceTree = "<group>"; };
 		D6BE904340E1B8B150749CB9 /* AvailabilityModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvailabilityModels.swift; sourceTree = "<group>"; };
@@ -141,6 +147,7 @@
 				0E9ED656935F2CFA85B548FB /* AvailabilityEditorView.swift */,
 				039EF67B4A3D2DFCE2BB5947 /* ChipGrid.swift */,
 				19898197BAA10B276B2FB8DE /* DiscoveryView.swift */,
+				82E2366D6829AC0F89AD6D1A /* LegalDocumentView.swift */,
 				1E903B45CAD7CFFB405162D4 /* LocationField.swift */,
 				8C88E22C8C7EC98421373CA8 /* MainTabView.swift */,
 				CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */,
@@ -179,6 +186,7 @@
 				A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */,
 				6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */,
 				50B84F4B4F694E651E433F91 /* Info.plist */,
+				D3839EA29840F52AE4351179 /* PrivacyInfo.xcprivacy */,
 				EB964F5D66726D6D28387940 /* Models */,
 				760D6AAFC0E74F15C0E683FB /* Services */,
 				1BF0B9AD1E0021CC5B2E8E9A /* Views */,
@@ -224,6 +232,7 @@
 				D8302D7DDCF5ABC376B506AB /* AppColors.swift */,
 				8B39764E724A6424013283BC /* AuthManager.swift */,
 				D6BE904340E1B8B150749CB9 /* AvailabilityModels.swift */,
+				7B58BB0100C614C917E06DFA /* LegalDocuments.swift */,
 				4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */,
 				15FB52A16FD7BA04C1596EBC /* ProfileTaxonomy.swift */,
 				CF97FF73C70591A9DA2734C2 /* UserProfile.swift */,
@@ -325,6 +334,7 @@
 			files = (
 				53DF620BE5561042CC6D94F5 /* Assets.xcassets in Resources */,
 				5D8E71C3B4DC19E86101CEEA /* GoogleService-Info.plist in Resources */,
+				2FAF758C635260F459538237 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -349,6 +359,8 @@
 				FC9745D7E28D7866E0667785 /* DiscoveryView.swift in Sources */,
 				69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */,
 				F643ABFFDEF2C504612EA54D /* GeoDistance.swift in Sources */,
+				D76596A8F8F8FAC2774F5CDD /* LegalDocumentView.swift in Sources */,
+				D10C6156C70294636C18B585 /* LegalDocuments.swift in Sources */,
 				789173DD07273205323A1941 /* LocationField.swift in Sources */,
 				5496296331C5E1CC9A53E5D9 /* LocationSearchService.swift in Sources */,
 				8D04A7F7835A240071A0A5F9 /* MainTabView.swift in Sources */,

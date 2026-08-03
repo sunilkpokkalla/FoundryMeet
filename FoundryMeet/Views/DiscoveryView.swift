@@ -3,6 +3,7 @@ import SwiftUI
 struct DiscoveryView: View {
     @EnvironmentObject private var repository: AppRepository
     @State private var showProfile = false
+    @State private var showAvailability = false
     @State private var errorMessage = ""
     @State private var statusMessage = ""
     @State private var isWorking = false
@@ -97,6 +98,11 @@ struct DiscoveryView: View {
                                     .padding(.horizontal, 24)
                             }
 
+                            if !earlyMemberSteps.isEmpty {
+                                earlyMemberChecklist
+                                    .padding(.horizontal, 20)
+                            }
+
                             if repository.discoveryFeed.isEmpty {
                                 emptyNetworkState
                             } else {
@@ -122,9 +128,129 @@ struct DiscoveryView: View {
             .sheet(isPresented: $showProfile) {
                 ProfileView()
             }
+            .sheet(isPresented: $showAvailability) {
+                AvailabilityEditorView()
+                    .environmentObject(repository)
+            }
             .task {
                 try? await repository.refreshAll()
             }
+        }
+    }
+
+    private enum EarlyMemberStep: String, Identifiable {
+        case photo
+        case linkedIn
+        case building
+        case availability
+        case invite
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .photo: return "Add a profile photo"
+            case .linkedIn: return "Add LinkedIn"
+            case .building: return "Say what you’re building"
+            case .availability: return "Confirm coffee-chat hours"
+            case .invite: return "Invite someone in your city"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .photo: return "camera"
+            case .linkedIn: return "link"
+            case .building: return "lightbulb"
+            case .availability: return "calendar"
+            case .invite: return "square.and.arrow.up"
+            }
+        }
+    }
+
+    private var earlyMemberSteps: [EarlyMemberStep] {
+        guard let profile = repository.profile else { return [] }
+        var steps: [EarlyMemberStep] = []
+        if profile.photoURL == nil || profile.photoURL?.isEmpty == true {
+            steps.append(.photo)
+        }
+        if profile.linkedInURL == nil || profile.linkedInURL?.isEmpty == true {
+            steps.append(.linkedIn)
+        }
+        if profile.buildingIdea == nil || profile.buildingIdea?.isEmpty == true {
+            steps.append(.building)
+        }
+        if profile.availability == AvailabilityWindow.defaultWorkWeek {
+            steps.append(.availability)
+        }
+        if repository.networkProfiles.count < 3 {
+            steps.append(.invite)
+        }
+        return steps
+    }
+
+    private var earlyMemberChecklist: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Early member checklist")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(AppColors.onSurface)
+
+            Text("A complete profile helps reviewers and new members see a real network, not an empty shell.")
+                .font(.system(size: 13))
+                .foregroundColor(AppColors.onSurfaceVariant)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(earlyMemberSteps) { step in
+                Group {
+                    if step == .invite {
+                        ShareLink(item: inviteMessage) {
+                            earlyMemberRow(step)
+                        }
+                    } else {
+                        Button {
+                            handleEarlyMemberStep(step)
+                        } label: {
+                            earlyMemberRow(step)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(AppColors.surfaceContainerLowest)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
+    }
+
+    private func earlyMemberRow(_ step: EarlyMemberStep) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: step.icon)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(AppColors.secondary)
+                .frame(width: 22)
+            Text(step.title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(AppColors.onSurface)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.onSurfaceVariant)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func handleEarlyMemberStep(_ step: EarlyMemberStep) {
+        switch step {
+        case .photo, .linkedIn, .building:
+            showProfile = true
+        case .availability:
+            showAvailability = true
+        case .invite:
+            break
         }
     }
 

@@ -25,10 +25,12 @@ service cloud.firestore {
       allow create: if isSelf(userId)
         && request.resource.data.get('isReviewer', false) == false;
       allow update: if isSelf(userId) && reviewerUnchanged();
-      allow delete: if false;
+      // Required for App Store account deletion.
+      allow delete: if isSelf(userId);
 
       match /interactions/{interactionId} {
         allow read, write: if isSelf(userId);
+        allow delete: if isSelf(userId);
       }
     }
 

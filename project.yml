@@ -64,6 +64,7 @@ targets:
         NSCalendarsUsageDescription: FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.
         NSCalendarsFullAccessUsageDescription: FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.
         NSPhotoLibraryUsageDescription: FoundryMeet needs photo access so you can set a profile picture.
+        ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - com.googleusercontent.apps.557443174588-e6d3cslgqabaivuh1ib8d2spu11un4er

@@ -118,6 +118,35 @@ final class AppRepository: ObservableObject {
         lastError = nil
     }
 
+    /// Wipes this user's stored profile data before Auth deletion. Shared chats
+    /// with other people are left for the other participant's history.
+    func deleteAccountData() async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+
+        await PhotoStorageService.deleteAvatar(userId: userId, useLocalStore: usesLocalStore)
+
+        if usesLocalStore {
+            let profileURL = try? localURL(key: "profile_\(userId)")
+            if let profileURL { try? FileManager.default.removeItem(at: profileURL) }
+            let interactionsURL = try? localURL(key: "interactions_\(userId)")
+            if let interactionsURL { try? FileManager.default.removeItem(at: interactionsURL) }
+            var network = (try? readLocal(key: "network_directory", as: [UserProfile].self)) ?? []
+            network.removeAll { $0.id == userId }
+            try? writeLocal(network, key: "network_directory")
+            UserDefaults.standard.removeObject(forKey: onboardingKey(for: userId))
+            return
+        }
+
+        let interactions = try await db.collection("users").document(userId)
+            .collection("interactions")
+            .getDocuments()
+        for doc in interactions.documents {
+            try await doc.reference.delete()
+        }
+        try await db.collection("users").document(userId).delete()
+        UserDefaults.standard.removeObject(forKey: onboardingKey(for: userId))
+    }
+
     func saveOnboarding(
         role: String?,
         place: ResolvedPlace?,
@@ -1119,6 +1148,7 @@ enum RepositoryError: LocalizedError {
     case matchNotAccepted
     case chatNotActive
     case sampleProfile
+    case reauthenticationRequired
 
     var errorDescription: String? {
         switch self {
@@ -1131,6 +1161,8 @@ enum RepositoryError: LocalizedError {
         case .matchNotAccepted: return "Wait for the request to be accepted before picking a time."
         case .chatNotActive: return "This coffee chat is no longer active."
         case .sampleProfile: return "This is a sample profile and can't receive requests."
+        case .reauthenticationRequired:
+            return "For security, sign out, sign back in, then delete your account again."
         }
     }
 }

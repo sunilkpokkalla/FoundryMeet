@@ -25,6 +25,20 @@ enum PhotoStorageService {
         return url.absoluteString
     }
 
+    static func deleteAvatar(userId: String, useLocalStore: Bool) async {
+        if useLocalStore {
+            let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("FoundryMeetAvatars", isDirectory: true)
+            let file = dir?.appendingPathComponent("\(userId).jpg")
+            if let file {
+                try? FileManager.default.removeItem(at: file)
+            }
+            return
+        }
+        let ref = Storage.storage().reference().child("users/\(userId)/avatar.jpg")
+        try? await ref.delete()
+    }
+
     static func jpegData(from image: UIImage, maxDimension: CGFloat = 1024, quality: CGFloat = 0.8) -> Data? {
         let size = image.size
         let scale = min(1, maxDimension / max(size.width, size.height))

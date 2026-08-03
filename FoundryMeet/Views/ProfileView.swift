@@ -28,6 +28,9 @@ struct ProfileView: View {
     @State private var showAddCredential = false
     @State private var showAvailability = false
     @State private var showReviewQueue = false
+    @State private var legalDocument: LegalDocument?
+    @State private var showDeleteConfirm = false
+    @State private var isDeletingAccount = false
     @State private var credTitle = ""
     @State private var credIssuer = ""
     @State private var credURL = ""
@@ -84,6 +87,17 @@ struct ProfileView: View {
             .sheet(isPresented: $showReviewQueue) {
                 CredentialReviewQueueView()
                     .environmentObject(repository)
+            }
+            .sheet(item: $legalDocument) { document in
+                LegalDocumentView(document: document)
+            }
+            .alert("Delete Account?", isPresented: $showDeleteConfirm) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+            } message: {
+                Text("This permanently removes your FoundryMeet account and profile data. You may need to sign in again first if Apple or Google asks for a recent login.")
             }
             .alert("Add credential", isPresented: $showAddCredential) {
                 TextField("Title", text: $credTitle)
@@ -529,13 +543,23 @@ struct ProfileView: View {
                 }
             }
 
+            actionRow(title: "Privacy Policy", icon: "hand.raised") {
+                legalDocument = .privacy
+            }
+            actionRow(title: "Terms of Use", icon: "doc.text") {
+                legalDocument = .terms
+            }
+            actionRow(title: "Support", icon: "questionmark.circle") {
+                legalDocument = .support
+            }
+
             Button {
                 authManager.signOut()
                 dismiss()
             } label: {
                 Text("Sign Out")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Color(hex: 0xB42318))
+                    .foregroundColor(AppColors.onSurface)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background(AppColors.surfaceContainerLowest)
@@ -546,6 +570,30 @@ struct ProfileView: View {
                     )
             }
             .buttonStyle(.plain)
+
+            Button {
+                showDeleteConfirm = true
+            } label: {
+                HStack {
+                    if isDeletingAccount {
+                        ProgressView()
+                    } else {
+                        Text("Delete Account")
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                }
+                .foregroundColor(Color(hex: 0xB42318))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(AppColors.surfaceContainerLowest)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(hex: 0xB42318).opacity(0.25), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isDeletingAccount)
         }
         .padding(.horizontal, 20)
         .padding(.top, 4)
@@ -702,6 +750,18 @@ struct ProfileView: View {
             } catch {
                 statusMessage = error.localizedDescription
             }
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        statusMessage = ""
+        defer { isDeletingAccount = false }
+        do {
+            try await authManager.deleteAccount()
+            dismiss()
+        } catch {
+            statusMessage = error.localizedDescription
         }
     }
 }

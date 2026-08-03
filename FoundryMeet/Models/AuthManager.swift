@@ -110,6 +110,39 @@ class AuthManager: ObservableObject {
         }
     }
 
+    /// Removes profile data, then the Firebase Auth user. Apple requires this
+    /// path because the app supports account creation.
+    func deleteAccount() async throws {
+#if DEBUG
+        if isDevSession {
+            try await repository.deleteAccountData()
+            isDevSession = false
+            isAuthenticated = false
+            sessionReady = false
+            hasCompletedOnboarding = false
+            repository.clearSession()
+            return
+        }
+#endif
+        guard let user = Auth.auth().currentUser else {
+            throw RepositoryError.notSignedIn
+        }
+        try await repository.deleteAccountData()
+        do {
+            try await user.delete()
+        } catch {
+            let ns = error as NSError
+            if ns.code == AuthErrorCode.requiresRecentLogin.rawValue {
+                throw RepositoryError.reauthenticationRequired
+            }
+            throw error
+        }
+        isAuthenticated = false
+        sessionReady = false
+        hasCompletedOnboarding = false
+        repository.clearSession()
+    }
+
     func markOnboardingComplete() {
         hasCompletedOnboarding = true
     }
