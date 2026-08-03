@@ -2,30 +2,42 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Binding var isOnboardingCompleted: Bool
+    @ObservedObject private var repository = AppRepository.shared
     
     @State private var step = 1
-    @State private var selectedRole: String? = nil
-    @State private var location: String = ""
-    @State private var selectedStage: String? = nil
-    @State private var selectedSkills: Set<String> = []
-    @State private var selectedGoal: String? = nil
+    @State private var selectedRole: FounderRole? = nil
+    @State private var place: ResolvedPlace? = nil
+    @State private var selectedStages: Set<StartupStage> = []
+    @State private var selectedIndustry: Industry? = nil
+    @State private var selectedSkills: Set<Skill> = []
+    @State private var selectedGoal: NetworkingGoal? = nil
+    @State private var isSaving = false
+    @State private var errorMessage = ""
     
-    let stages = ["Idea", "Seed", "Series A+"]
-    let skills = [
-        ("Engineering", "curlybraces"),
-        ("Design", "paintpalette"),
-        ("Sales", "banknote"),
-        ("Growth", "chart.line.uptrend.xyaxis"),
-        ("Product", "cube.box"),
-        ("Legal", "briefcase"),
-        ("AI/ML", "brain")
-    ]
-    
-    let goals = [
-        ("Find a Cofounder", "hand.shake", "Search for partners with complementary skills and shared values."),
-        ("Hire Early Team", "person.badge.plus", "Find the builders who will help you lay the first bricks."),
-        ("Get Advice", "graduationcap", "Connect with experienced advisors and domain experts.")
-    ]
+    /// Only the goals that make sense for the role picked in step 1.
+    private var availableGoals: [NetworkingGoal] {
+        selectedRole?.goals ?? []
+    }
+
+    private var availableStages: [StartupStage] {
+        selectedRole?.stages ?? []
+    }
+
+    private var availableSkills: [Skill] {
+        selectedRole?.skills ?? []
+    }
+
+    /// Everything these steps collect feeds matching, so none of them can be
+    /// skipped.
+    private var canContinue: Bool {
+        switch step {
+        case 1: return selectedRole != nil
+        case 2: return place != nil && !selectedStages.isEmpty
+        case 3: return !selectedSkills.isEmpty
+        case 4: return selectedGoal != nil
+        default: return true
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -92,27 +104,62 @@ struct OnboardingView: View {
                     if step < 4 {
                         withAnimation { step += 1 }
                     } else {
-                        withAnimation { isOnboardingCompleted = true }
+                        finishOnboarding()
                     }
                 }) {
                     HStack {
-                        if step == 4 {
-                            Image(systemName: "sparkles")
+                        if isSaving {
+                            ProgressView()
+                                .tint(step == 4 ? AppColors.onSecondary : AppColors.onPrimary)
+                        } else {
+                            if step == 4 {
+                                Image(systemName: "sparkles")
+                            }
+                            Text(step == 4 ? "Start Matching" : "Continue")
                         }
-                        Text(step == 4 ? "Start Matching" : "Continue")
                     }
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(step == 4 ? AppColors.onSecondary : AppColors.onPrimary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(step == 4 ? AppColors.secondary : AppColors.primary)
+                    .background((step == 4 ? AppColors.secondary : AppColors.primary).opacity(canContinue ? 1 : 0.5))
                     .cornerRadius(12)
                 }
+                .disabled(isSaving || !canContinue)
             }
             .padding(24)
             .background(AppColors.surface.opacity(0.9))
+
+            if !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.system(size: 13))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+            }
         }
         .background(AppColors.background.ignoresSafeArea())
+    }
+
+    private func finishOnboarding() {
+        errorMessage = ""
+        isSaving = true
+        Task {
+            do {
+                try await repository.saveOnboarding(
+                    role: selectedRole?.rawValue,
+                    place: place,
+                    stages: availableStages.filter { selectedStages.contains($0) },
+                    industry: selectedIndustry,
+                    skills: availableSkills.filter { selectedSkills.contains($0) }.map(\.rawValue),
+                    goal: selectedGoal?.rawValue
+                )
+                withAnimation { isOnboardingCompleted = true }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            isSaving = false
+        }
     }
     
     // MARK: - Step 1
@@ -133,25 +180,34 @@ struct OnboardingView: View {
                 Text("What is your primary role?")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(AppColors.onSurfaceVariant)
-                
-                VStack(spacing: 12) {
-                    RoleOptionCard(
-                        title: "Founder", subtitle: "Visionary and strategist", icon: "rocket",
-                        isSelected: selectedRole == "Founder"
-                    ) { selectedRole = "Founder" }
-                    
-                    RoleOptionCard(
-                        title: "Builder", subtitle: "Engineer or Designer", icon: "wrench.and.screwdriver",
-                        isSelected: selectedRole == "Builder"
-                    ) { selectedRole = "Builder" }
-                    
-                    RoleOptionCard(
-                        title: "Early Hire", subtitle: "First 10 employees", icon: "person.3",
-                        isSelected: selectedRole == "Early Hire"
-                    ) { selectedRole = "Early Hire" }
+
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                    spacing: 12
+                ) {
+                    ForEach(FounderRole.allCases) { role in
+                        RoleOptionCard(role: role, isSelected: selectedRole == role) {
+                            select(role)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// Switching role can strip away answers that no longer apply.
+    private func select(_ role: FounderRole) {
+        selectedRole = role
+        if let goal = selectedGoal, !role.goals.contains(goal) {
+            selectedGoal = nil
+        }
+        selectedStages = role.retainingValidStages(from: selectedStages)
+        selectedSkills = role.retainingValidSkills(from: selectedSkills)
+    }
+
+    private func toggle(_ stage: StartupStage) {
+        guard let role = selectedRole else { return }
+        selectedStages = role.toggling(stage, in: selectedStages)
     }
     
     // MARK: - Step 2
@@ -162,7 +218,7 @@ struct OnboardingView: View {
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(AppColors.onSurface)
                 
-                Text("Where are you building, and how far along is the journey?")
+                Text("Where you're based, and the kind of company you want to be around.")
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(AppColors.onSurfaceVariant)
             }
@@ -173,40 +229,51 @@ struct OnboardingView: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(AppColors.onSurfaceVariant)
                     
-                    HStack {
-                        TextField("e.g. San Francisco, CA", text: $location)
-                            .font(.system(size: 16))
-                            .foregroundColor(AppColors.onSurface)
-                        Image(systemName: "location.fill")
-                            .foregroundColor(AppColors.onSurfaceVariant)
-                    }
-                    .padding()
-                    .background(AppColors.surfaceContainerLowest)
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(AppColors.secondary.opacity(0.2), lineWidth: 2)
-                    )
+                    LocationField(place: $place)
                 }
                 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Startup Stage")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(AppColors.onSurfaceVariant)
-                    
-                    HStack(spacing: 8) {
-                        ForEach(stages, id: \.self) { stage in
-                            Button(action: { selectedStage = stage }) {
-                                Text(stage)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(selectedStage == stage ? AppColors.secondary : AppColors.surfaceContainer)
-                                    .foregroundColor(selectedStage == stage ? AppColors.onSecondary : AppColors.onSurface)
-                                    .cornerRadius(20)
-                            }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(selectedRole?.stageLabel ?? "Stage")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+
+                        Text(selectedRole?.stageQuestion ?? "What stage are you at?")
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.onSurfaceVariant.opacity(0.8))
+
+                        if selectedRole?.allowsMultipleStages == true {
+                            Text("Pick as many as apply.")
+                                .font(.system(size: 12))
+                                .foregroundColor(AppColors.onSurfaceVariant.opacity(0.7))
                         }
                     }
+
+                    ChipGrid(
+                        items: availableStages,
+                        title: { $0.title },
+                        isSelected: { selectedStages.contains($0) },
+                        onTap: { toggle($0) }
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Industry")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+
+                        Text(selectedRole?.industryQuestion ?? "What space are you in?")
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.onSurfaceVariant.opacity(0.8))
+                    }
+
+                    ChipGrid(
+                        items: Industry.allCases,
+                        title: { $0.title },
+                        isSelected: { selectedIndustry == $0 },
+                        onTap: { selectedIndustry = selectedIndustry == $0 ? nil : $0 }
+                    )
                 }
             }
         }
@@ -220,36 +287,38 @@ struct OnboardingView: View {
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(AppColors.onSurface)
                 
-                Text("Select the skills you bring to the table.")
+                Text(selectedRole?.skillQuestion ?? "What do you bring to the table?")
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(AppColors.onSurfaceVariant)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 12)], spacing: 12) {
-                ForEach(skills, id: \.0) { skill in
-                    let isSelected = selectedSkills.contains(skill.0)
-                    Button(action: {
-                        if isSelected {
-                            selectedSkills.remove(skill.0)
-                        } else {
-                            selectedSkills.insert(skill.0)
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: skill.1)
-                            Text(skill.0)
-                        }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Pick up to \(Skill.selectionLimit)")
                         .font(.system(size: 14, weight: .medium))
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 16)
-                        .frame(maxWidth: .infinity)
-                        .background(isSelected ? AppColors.secondary : AppColors.surfaceContainerLow)
-                        .foregroundColor(isSelected ? AppColors.onSecondary : AppColors.onSurface)
-                        .cornerRadius(20)
-                    }
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    Spacer()
+                    Text("\(selectedSkills.count) of \(Skill.selectionLimit)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(atSkillLimit ? AppColors.secondary : AppColors.onSurfaceVariant.opacity(0.7))
                 }
+
+                ChipGrid(
+                    items: availableSkills,
+                    title: { $0.title },
+                    icon: { $0.icon },
+                    isSelected: { selectedSkills.contains($0) },
+                    isDisabled: { atSkillLimit && !selectedSkills.contains($0) },
+                    onTap: { selectedSkills = Skill.toggling($0, in: selectedSkills) },
+                    minWidth: 132
+                )
             }
         }
+    }
+
+    private var atSkillLimit: Bool {
+        selectedSkills.count >= Skill.selectionLimit
     }
     
     // MARK: - Step 4
@@ -260,63 +329,76 @@ struct OnboardingView: View {
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(AppColors.onSurface)
                 
-                Text("What is your primary goal right now?")
+                Text(selectedRole.map { "What do you want out of the network as \(article(for: $0)) \($0.title)?" }
+                    ?? "What is your primary goal right now?")
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(AppColors.onSurfaceVariant)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
             VStack(spacing: 12) {
-                ForEach(goals, id: \.0) { goal in
+                ForEach(availableGoals) { goal in
                     GoalOptionCard(
-                        title: goal.0, icon: goal.1, description: goal.2,
-                        isSelected: selectedGoal == goal.0
-                    ) { selectedGoal = goal.0 }
+                        title: goal.title, icon: goal.icon, description: goal.detail,
+                        isSelected: selectedGoal == goal
+                    ) { selectedGoal = goal }
                 }
             }
         }
     }
+
+    private func article(for role: FounderRole) -> String {
+        "AEIOU".contains(role.title.uppercased().prefix(1)) ? "an" : "a"
+    }
 }
 
 struct RoleOptionCard: View {
-    var title: String
-    var subtitle: String
-    var icon: String
+    var role: FounderRole
     var isSelected: Bool
     var action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? AppColors.secondary : AppColors.surfaceContainerHighest)
-                        .frame(width: 48, height: 48)
-                    
-                    Image(systemName: icon)
-                        .foregroundColor(isSelected ? AppColors.onSecondary : AppColors.primary)
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(AppColors.onSurface)
-                    Text(subtitle)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(AppColors.onSurfaceVariant)
-                }
-                
-                Spacer()
-                
-                if isSelected {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        Circle()
+                            .fill(isSelected ? AppColors.secondary : AppColors.surfaceContainerHighest)
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: role.icon)
+                            .font(.system(size: 17))
+                            .foregroundColor(isSelected ? AppColors.onSecondary : AppColors.primary)
+                    }
+
+                    Spacer(minLength: 0)
+
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(AppColors.secondary)
+                        .opacity(isSelected ? 1 : 0)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(role.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppColors.onSurface)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    Text(role.subtitle)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(20)
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 128, alignment: .topLeading)
             .background(isSelected ? Color(hex: 0xffdb94) : AppColors.surfaceContainerLow)
             .cornerRadius(12)
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("\(role.title). \(role.subtitle)")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
 
