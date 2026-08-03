@@ -4,6 +4,7 @@ struct DiscoveryView: View {
     @EnvironmentObject private var repository: AppRepository
     @State private var showProfile = false
     @State private var showAvailability = false
+    @State private var showInviteShare = false
     @State private var errorMessage = ""
     @State private var statusMessage = ""
     @State private var isWorking = false
@@ -16,7 +17,8 @@ struct DiscoveryView: View {
                 VStack(spacing: 0) {
                     AppHeader(
                         showProfile: $showProfile,
-                        profileInitials: repository.profile?.initials ?? ""
+                        profileInitials: repository.profile?.initials ?? "",
+                        profilePhotoURL: repository.profile?.photoURL
                     )
 
                     ScrollView {
@@ -132,6 +134,9 @@ struct DiscoveryView: View {
                 AvailabilityEditorView()
                     .environmentObject(repository)
             }
+            .background {
+                ActivitySharePresenter(isPresented: $showInviteShare, items: [inviteMessage])
+            }
             .task {
                 try? await repository.refreshAll()
             }
@@ -201,20 +206,12 @@ struct DiscoveryView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             ForEach(earlyMemberSteps) { step in
-                Group {
-                    if step == .invite {
-                        ShareLink(item: inviteMessage) {
-                            earlyMemberRow(step)
-                        }
-                    } else {
-                        Button {
-                            handleEarlyMemberStep(step)
-                        } label: {
-                            earlyMemberRow(step)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                Button {
+                    handleEarlyMemberStep(step)
+                } label: {
+                    earlyMemberRow(step)
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(16)
@@ -250,7 +247,7 @@ struct DiscoveryView: View {
         case .availability:
             showAvailability = true
         case .invite:
-            break
+            showInviteShare = true
         }
     }
 
@@ -342,7 +339,9 @@ struct DiscoveryView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
-            ShareLink(item: inviteMessage) {
+            Button {
+                showInviteShare = true
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "square.and.arrow.up")
                     Text(inviteButtonTitle)
@@ -354,6 +353,7 @@ struct DiscoveryView: View {
                 .background(AppColors.primary)
                 .cornerRadius(12)
             }
+            .buttonStyle(.plain)
             .padding(.top, 4)
 
             if !repository.filters.isDefault {

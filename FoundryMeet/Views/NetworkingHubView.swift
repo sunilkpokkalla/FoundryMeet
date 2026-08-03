@@ -26,7 +26,8 @@ struct NetworkingHubView: View {
                 VStack(spacing: 0) {
                     AppHeader(
                         showProfile: $showProfile,
-                        profileInitials: repository.profile?.initials ?? ""
+                        profileInitials: repository.profile?.initials ?? "",
+                        profilePhotoURL: repository.profile?.photoURL
                     )
 
                     ScrollView {
