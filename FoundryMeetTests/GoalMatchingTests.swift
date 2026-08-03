@@ -70,21 +70,27 @@ final class GoalReciprocityTests: XCTestCase {
 }
 
 final class DiscoveryFilterStateTests: XCTestCase {
-    func testFiltersStartEmpty() {
+    func testDefaultIncludesComplementaryMatching() {
+        XCTAssertTrue(DiscoveryFilters.default.complementaryGoalsOnly)
+        XCTAssertTrue(DiscoveryFilters().isDefault)
         XCTAssertTrue(DiscoveryFilters().isEmpty)
     }
 
-    func testAnyFilterMakesItNonEmpty() {
-        var filters = DiscoveryFilters()
-        filters.complementaryGoalsOnly = true
-        XCTAssertFalse(filters.isEmpty)
+    func testNarrowingLeavesTheDefault() {
+        var filters = DiscoveryFilters.default
+        filters.complementaryGoalsOnly = false
+        XCTAssertFalse(filters.isDefault)
 
-        filters = DiscoveryFilters()
+        filters = DiscoveryFilters.default
+        filters.nearbyOnly = true
+        XCTAssertFalse(filters.isDefault)
+
+        filters = DiscoveryFilters.default
         filters.stage = "Seed"
-        XCTAssertFalse(filters.isEmpty)
+        XCTAssertFalse(filters.isDefault)
 
-        filters = DiscoveryFilters()
+        filters = DiscoveryFilters.default
         filters.industry = "Fintech"
-        XCTAssertFalse(filters.isEmpty)
+        XCTAssertFalse(filters.isDefault)
     }
 }

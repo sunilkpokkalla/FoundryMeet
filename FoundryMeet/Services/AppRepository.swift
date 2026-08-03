@@ -331,6 +331,7 @@ final class AppRepository: ObservableObject {
             endsAt: endsAt,
             calendarEventId: nil,
             inviteStatus: "none",
+            outcomes: [:],
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -626,16 +627,51 @@ final class AppRepository: ObservableObject {
         // Without a goal of your own there is nothing to complement, so the
         // filter becomes a no-op rather than blanking the feed.
         let myGoal = profile?.goal.flatMap(NetworkingGoal.init(rawValue:))?.rawValue
+        let myLocation = profile?.location
+        let myLat = profile?.latitude
+        let myLon = profile?.longitude
+
         if filters.complementaryGoalsOnly, myGoal != nil {
             candidates = candidates.filter { NetworkingGoal.areComplementary(myGoal, $0.goal) }
         }
-        // People who want the other side of what you want come first, whether or
-        // not the filter is on.
+        if filters.nearbyOnly {
+            candidates = candidates.filter {
+                GeoDistance.isNearby(
+                    myLocation: myLocation,
+                    myLatitude: myLat,
+                    myLongitude: myLon,
+                    theirLocation: $0.location,
+                    theirLatitude: $0.latitude,
+                    theirLongitude: $0.longitude
+                )
+            }
+        }
+
+        // Complementary goals first, then closer people, then original order.
         discoveryFeed = candidates.enumerated()
             .sorted { lhs, rhs in
                 let lhsFits = NetworkingGoal.areComplementary(myGoal, lhs.element.goal)
                 let rhsFits = NetworkingGoal.areComplementary(myGoal, rhs.element.goal)
-                return lhsFits == rhsFits ? lhs.offset < rhs.offset : lhsFits
+                if lhsFits != rhsFits { return lhsFits }
+
+                let lhsDistance = GeoDistance.sortKeyKilometers(
+                    myLatitude: myLat,
+                    myLongitude: myLon,
+                    theirLatitude: lhs.element.latitude,
+                    theirLongitude: lhs.element.longitude,
+                    myLocation: myLocation,
+                    theirLocation: lhs.element.location
+                )
+                let rhsDistance = GeoDistance.sortKeyKilometers(
+                    myLatitude: myLat,
+                    myLongitude: myLon,
+                    theirLatitude: rhs.element.latitude,
+                    theirLongitude: rhs.element.longitude,
+                    myLocation: myLocation,
+                    theirLocation: rhs.element.location
+                )
+                if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+                return lhs.offset < rhs.offset
             }
             .map(\.element)
     }
@@ -755,6 +791,19 @@ final class AppRepository: ObservableObject {
         if let index = chats.firstIndex(where: { $0.id == chatId }) {
             chats[index] = chat
         }
+    }
+
+    /// Records how the coffee went for this user. Each participant keeps their
+    /// own answer on the shared chat document.
+    func submitChatOutcome(_ chat: CoffeeChat, outcome: CoffeeChat.MeetingOutcome) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard chat.participantIds.contains(userId) else { throw RepositoryError.notAllowed }
+        guard chat.needsOutcome else { throw RepositoryError.chatNotActive }
+        var updated = chats.first(where: { $0.id == chat.id }) ?? chat
+        updated.outcomes[userId] = outcome.rawValue
+        updated.updatedAt = Date()
+        try await saveChat(updated)
+        upsertChat(updated)
     }
 
     // MARK: - Messaging
@@ -1113,6 +1162,8 @@ extension UserProfile {
         }
         if let goal { data["goal"] = goal }
         if let bio { data["bio"] = bio }
+        if let buildingIdea { data["buildingIdea"] = buildingIdea }
+        if let linkedInURL { data["linkedInURL"] = linkedInURL }
         if let industry { data["industry"] = industry }
         if let photoURL { data["photoURL"] = photoURL }
         return data
@@ -1137,6 +1188,8 @@ extension UserProfile {
             skills: data["skills"] as? [String] ?? [],
             goal: data["goal"] as? String,
             bio: data["bio"] as? String,
+            buildingIdea: data["buildingIdea"] as? String,
+            linkedInURL: data["linkedInURL"] as? String,
             industry: UserProfile.normalizedIndustry(data["industry"] as? String),
             credentials: credentialMaps.compactMap(VerifiedCredential.init(firestoreData:)),
             availability: windows.isEmpty ? AvailabilityWindow.defaultWorkWeek : windows,
@@ -1300,6 +1353,7 @@ private extension CoffeeChat {
             "status": status,
             "proposedById": proposedById,
             "inviteStatus": inviteStatus,
+            "outcomes": outcomes,
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": Timestamp(date: updatedAt)
         ]
@@ -1343,6 +1397,7 @@ private extension CoffeeChat {
             endsAt: (data["endsAt"] as? Timestamp)?.dateValue(),
             calendarEventId: data["calendarEventId"] as? String,
             inviteStatus: data["inviteStatus"] as? String ?? "none",
+            outcomes: data["outcomes"] as? [String: String] ?? [:],
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
             updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
         )

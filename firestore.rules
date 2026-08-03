@@ -15,8 +15,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
+      // Reviewer status is console/admin only — clients cannot grant it to themselves.
+      function reviewerUnchanged() {
+        return request.resource.data.get('isReviewer', false)
+          == resource.data.get('isReviewer', false);
+      }
+
       allow read: if signedIn();
-      allow create, update: if isSelf(userId);
+      allow create: if isSelf(userId)
+        && request.resource.data.get('isReviewer', false) == false;
+      allow update: if isSelf(userId) && reviewerUnchanged();
       allow delete: if false;
 
       match /interactions/{interactionId} {

@@ -25,7 +25,7 @@ struct DiscoveryView: View {
                                     .font(.system(size: 28, weight: .semibold))
                                     .tracking(-0.6)
                                     .foregroundColor(AppColors.onSurface)
-                                Text("High-signal matches based on your recent activity.")
+                                Text(homeSubtitle)
                                     .font(.system(size: 15, weight: .regular))
                                     .foregroundColor(AppColors.onSurfaceVariant)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -46,6 +46,17 @@ struct DiscoveryView: View {
                                             repository.setFilters(next)
                                         }
                                     }
+                                    if myLocation != nil || hasCoordinates {
+                                        FilterChip(
+                                            text: "Nearby",
+                                            icon: "mappin.and.ellipse",
+                                            isSelected: repository.filters.nearbyOnly
+                                        ) {
+                                            var next = repository.filters
+                                            next.nearbyOnly.toggle()
+                                            repository.setFilters(next)
+                                        }
+                                    }
                                     if let stage = myStage {
                                         FilterChip(
                                             text: "Stage: \(stage)",
@@ -63,9 +74,9 @@ struct DiscoveryView: View {
                                             toggleFilter(industry: industry)
                                         }
                                     }
-                                    if !repository.filters.isEmpty {
-                                        FilterChip(text: "Clear", isSelected: false) {
-                                            repository.setFilters(DiscoveryFilters())
+                                    if !repository.filters.isDefault {
+                                        FilterChip(text: "Reset", isSelected: false) {
+                                            repository.setFilters(.default)
                                         }
                                     }
                                 }
@@ -87,31 +98,7 @@ struct DiscoveryView: View {
                             }
 
                             if repository.discoveryFeed.isEmpty {
-                                VStack(spacing: 14) {
-                                    Spacer().frame(height: 72)
-
-                                    ZStack {
-                                        Circle()
-                                            .fill(AppColors.accentSoft.opacity(0.55))
-                                            .frame(width: 72, height: 72)
-                                        Image(systemName: "sparkle")
-                                            .font(.system(size: 28, weight: .medium))
-                                            .foregroundColor(AppColors.secondary)
-                                    }
-
-                                    Text("You're all caught up")
-                                        .font(.system(size: 20, weight: .semibold))
-                                        .tracking(-0.3)
-                                        .foregroundColor(AppColors.onSurface)
-
-                                    Text("New high-signal matches will appear here as your network evolves.")
-                                        .font(.system(size: 15))
-                                        .foregroundColor(AppColors.onSurfaceVariant)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 48)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.bottom, 40)
+                                emptyNetworkState
                             } else {
                                 VStack(spacing: 20) {
                                     ForEach(repository.discoveryFeed) { profile in
@@ -181,6 +168,102 @@ struct DiscoveryView: View {
 
     private var myIndustry: String? {
         repository.profile?.industry
+    }
+
+    private var myLocation: String? {
+        repository.profile?.location
+    }
+
+    private var hasCoordinates: Bool {
+        repository.profile?.latitude != nil && repository.profile?.longitude != nil
+    }
+
+    private var homeSubtitle: String {
+        if let goal = myGoal {
+            return "People who can help you \(goal.title.lowercased()), closer ones first."
+        }
+        return "High-signal coffee chats with people building nearby."
+    }
+
+    private var inviteMessage: String {
+        if let city = myLocation, !city.isEmpty, city.lowercased() != "remote" {
+            return "I'm on FoundryMeet — high-signal coffee chats for founders and builders in \(city). Join me and grow the local network."
+        }
+        return "I'm on FoundryMeet — high-signal coffee chats for founders, builders, and investors. Join me."
+    }
+
+    private var emptyNetworkState: some View {
+        VStack(spacing: 14) {
+            Spacer().frame(height: 56)
+
+            ZStack {
+                Circle()
+                    .fill(AppColors.accentSoft.opacity(0.55))
+                    .frame(width: 72, height: 72)
+                Image(systemName: repository.filters.nearbyOnly ? "mappin.and.ellipse" : "person.2")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundColor(AppColors.secondary)
+            }
+
+            Text(emptyTitle)
+                .font(.system(size: 20, weight: .semibold))
+                .tracking(-0.3)
+                .foregroundColor(AppColors.onSurface)
+
+            Text(emptyBody)
+                .font(.system(size: 15))
+                .foregroundColor(AppColors.onSurfaceVariant)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            ShareLink(item: inviteMessage) {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.arrow.up")
+                    Text(inviteButtonTitle)
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundColor(AppColors.onPrimary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(AppColors.primary)
+                .cornerRadius(12)
+            }
+            .padding(.top, 4)
+
+            if !repository.filters.isDefault {
+                Button("Reset filters") {
+                    repository.setFilters(.default)
+                }
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(AppColors.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 40)
+    }
+
+    private var emptyTitle: String {
+        if repository.filters.nearbyOnly {
+            return myLocation.map { "No one in \($0) yet" } ?? "No one nearby yet"
+        }
+        if repository.networkProfiles.isEmpty {
+            return "Your city is still quiet"
+        }
+        return "You're all caught up"
+    }
+
+    private var emptyBody: String {
+        if repository.filters.nearbyOnly || repository.networkProfiles.isEmpty {
+            return "Invite founders you already trust. Density is what makes coffee chats possible."
+        }
+        return "Widen filters or invite someone — new matches show up as the network grows."
+    }
+
+    private var inviteButtonTitle: String {
+        if let city = myLocation, !city.isEmpty, city.lowercased() != "remote" {
+            return "Invite founders in \(city)"
+        }
+        return "Invite founders"
     }
 
     private func toggleFilter(stage: String? = nil, industry: String? = nil) {
@@ -262,7 +345,7 @@ struct DiscoveryProfileCard: View {
                 )
                 .frame(height: 120)
 
-                HStack {
+                HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.name)
                             .font(.system(size: 20, weight: .bold))
@@ -270,53 +353,65 @@ struct DiscoveryProfileCard: View {
                         Text(profile.role)
                             .font(.system(size: 16))
                             .foregroundColor(.white.opacity(0.9))
+                        if let location = profile.location, !location.isEmpty {
+                            Label(location, systemImage: "mappin")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white.opacity(0.85))
+                        }
                     }
                     Spacer()
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color(hex: 0xc86c00))
-                            .frame(width: 8, height: 8)
-                        Text("Active")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
+                    if let urlString = profile.linkedInURL, let url = URL(string: urlString) {
+                        Link(destination: url) {
+                            Image(systemName: "link")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Color.black.opacity(0.28))
+                                .clipShape(Circle())
+                        }
+                        .accessibilityLabel("Open LinkedIn")
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color(hex: 0x010000).opacity(0.2))
-                    .cornerRadius(12)
                 }
                 .padding(24)
             }
 
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("TOP EXPERTISE")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(AppColors.onSurfaceVariant)
+                if !profile.tags.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("TOP EXPERTISE")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(AppColors.onSurfaceVariant)
 
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(profile.tags, id: \.self) { tag in
-                                Text(tag)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(AppColors.surfaceContainer)
-                                    .foregroundColor(AppColors.onSurfaceVariant)
-                                    .cornerRadius(16)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack {
+                                ForEach(profile.tags, id: \.self) { tag in
+                                    Text(tag)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(AppColors.surfaceContainer)
+                                        .foregroundColor(AppColors.onSurfaceVariant)
+                                        .cornerRadius(16)
+                                }
                             }
                         }
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("LOOKING FOR")
+                    Text(profile.buildingIdea == nil ? "LOOKING FOR" : "BUILDING")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(Color(hex: 0x5a4309))
 
                     Text(profile.desc)
                         .font(.system(size: 16))
                         .foregroundColor(AppColors.onSurface)
+
+                    if let goal = profile.goal, profile.buildingIdea != nil {
+                        Text("Looking for: \(goal)")
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                    }
                 }
                 .padding(16)
                 .background(AppColors.surfaceContainerLow)

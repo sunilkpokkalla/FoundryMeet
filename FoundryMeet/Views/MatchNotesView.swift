@@ -35,6 +35,10 @@ struct MatchNotesView: View {
 
                 actionsSection
 
+                if liveChat.needsOutcome {
+                    outcomeSection
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("NOTES")
                         .font(.system(size: 12, weight: .bold))
@@ -130,6 +134,47 @@ struct MatchNotesView: View {
                 .foregroundColor(AppColors.secondary)
             ChatStatusBadge(chat: liveChat, userId: myId)
         }
+    }
+
+    private var outcomeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("HOW DID IT GO?")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(AppColors.onSurfaceVariant)
+
+            if let existing = liveChat.outcome(for: myId) {
+                Text("You marked this \(existing.title.lowercased()).")
+                    .font(.system(size: 15))
+                    .foregroundColor(AppColors.onSurface)
+            } else {
+                Text("A quick signal helps the network learn who is worth meeting.")
+                    .font(.system(size: 14))
+                    .foregroundColor(AppColors.onSurfaceVariant)
+
+                HStack(spacing: 8) {
+                    ForEach(CoffeeChat.MeetingOutcome.allCases) { outcome in
+                        Button {
+                            perform("Thanks — noted.") {
+                                try await repository.submitChatOutcome(liveChat, outcome: outcome)
+                            }
+                        } label: {
+                            Text(outcome.title)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(AppColors.onSurface)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(AppColors.surfaceContainerHigh)
+                                .cornerRadius(10)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surfaceContainerLow)
+        .cornerRadius(12)
     }
 
     @ViewBuilder

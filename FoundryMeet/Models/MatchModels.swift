@@ -132,8 +132,26 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var calendarEventId: String?
     /// none | local | synced | failed
     var inviteStatus: String
+    /// Per-participant post-chat outcome: useful | not_a_fit | no_show
+    var outcomes: [String: String]
     var createdAt: Date
     var updatedAt: Date
+
+    enum MeetingOutcome: String, CaseIterable, Identifiable {
+        case useful = "useful"
+        case notAFit = "not_a_fit"
+        case noShow = "no_show"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .useful: return "Useful"
+            case .notAFit: return "Not a fit"
+            case .noShow: return "No-show"
+            }
+        }
+    }
 
     var metOnLabel: String {
         let formatter = DateFormatter()
@@ -181,6 +199,14 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
         }
         return organizerName.isEmpty ? "Founder" : organizerName
     }
+
+    func outcome(for userId: String) -> MeetingOutcome? {
+        outcomes[userId].flatMap(MeetingOutcome.init(rawValue:))
+    }
+
+    var needsOutcome: Bool {
+        isConfirmed && isPast
+    }
 }
 
 struct DiscoveryCandidate: Identifiable, Equatable {
@@ -193,6 +219,11 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     let industry: String
     var stages: [String] = []
     var goal: String? = nil
+    var location: String? = nil
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+    var buildingIdea: String? = nil
+    var linkedInURL: String? = nil
     var credentials: [VerifiedCredential] = []
     /// Sample profile with no account behind it, so it cannot receive a request.
     var isSeed: Bool = false
@@ -230,6 +261,11 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         industry: String,
         stages: [String] = [],
         goal: String? = nil,
+        location: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        buildingIdea: String? = nil,
+        linkedInURL: String? = nil,
         credentials: [VerifiedCredential] = [],
         isSeed: Bool = false
     ) {
@@ -242,23 +278,42 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         self.industry = industry
         self.stages = stages
         self.goal = goal
+        self.location = location
+        self.latitude = latitude
+        self.longitude = longitude
+        self.buildingIdea = buildingIdea
+        self.linkedInURL = linkedInURL
         self.credentials = credentials
         self.isSeed = isSeed
     }
 
     init(profile: UserProfile) {
+        let idea = profile.buildingIdea?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let blurb: String
+        if let idea, !idea.isEmpty {
+            blurb = idea
+        } else if let bio = profile.bio, !bio.isEmpty {
+            blurb = bio
+        } else if let goal = profile.goal {
+            blurb = "Looking for: \(goal)"
+        } else {
+            blurb = "Open to high-signal coffee chats."
+        }
         self.init(
             id: profile.id,
             name: profile.displayName.isEmpty ? "Founder" : profile.displayName,
             role: profile.role ?? "Founder",
             imgUrl: profile.photoURL ?? "",
-            desc: profile.bio?.isEmpty == false
-                ? profile.bio!
-                : (profile.goal.map { "Looking for: \($0)" } ?? "Open to high-signal coffee chats."),
+            desc: blurb,
             tags: profile.skills,
             industry: profile.industry ?? "Startup",
             stages: profile.stages,
             goal: profile.goal,
+            location: profile.location,
+            latitude: profile.latitude,
+            longitude: profile.longitude,
+            buildingIdea: idea?.isEmpty == false ? idea : nil,
+            linkedInURL: profile.linkedInURL,
             credentials: profile.credentials
         )
     }

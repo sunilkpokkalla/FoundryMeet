@@ -15,6 +15,8 @@ struct ProfileView: View {
     @State private var goal: NetworkingGoal?
     @State private var industry: Industry?
     @State private var bio = ""
+    @State private var buildingIdea = ""
+    @State private var linkedInURL = ""
     @State private var skills: Set<Skill> = []
     /// Stored values with no chip to represent them. Carried through a save so
     /// editing an unrelated field cannot quietly delete them.
@@ -316,6 +318,19 @@ struct ProfileView: View {
                 .padding(.vertical, 12)
                 divider
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("What I'm building")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    TextField("One line on your product or idea", text: $buildingIdea, axis: .vertical)
+                        .lineLimit(2...4)
+                        .font(.system(size: 16))
+                        .foregroundColor(AppColors.onSurface)
+                }
+                .padding(.vertical, 14)
+                divider
+                editField("LinkedIn", text: $linkedInURL, placeholder: "https://linkedin.com/in/…")
+                divider
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Bio")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.onSurfaceVariant)
@@ -360,6 +375,24 @@ struct ProfileView: View {
                 detailRow("Industry", profile.industry ?? "—")
                 divider
                 detailRow("Skills", profile.skills.isEmpty ? "—" : profile.skills.joined(separator: ", "))
+                if let idea = profile.buildingIdea, !idea.isEmpty {
+                    divider
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Building")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                        Text(idea)
+                            .font(.system(size: 15))
+                            .foregroundColor(AppColors.onSurface)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 14)
+                }
+                if let linkedIn = profile.linkedInURL, !linkedIn.isEmpty {
+                    divider
+                    detailRow("LinkedIn", linkedIn)
+                }
                 if let bio = profile.bio, !bio.isEmpty {
                     divider
                     VStack(alignment: .leading, spacing: 6) {
@@ -496,17 +529,6 @@ struct ProfileView: View {
                 }
             }
 
-#if DEBUG
-            actionRow(title: "Enable reviewer (debug)", icon: "person.badge.shield.checkmark") {
-                Task {
-                    guard var profile = repository.profile else { return }
-                    profile.isReviewer = true
-                    try? await repository.updateProfile(profile)
-                    statusMessage = "Reviewer mode enabled."
-                }
-            }
-#endif
-
             Button {
                 authManager.signOut()
                 dismiss()
@@ -583,6 +605,18 @@ struct ProfileView: View {
         .padding(.vertical, 14)
     }
 
+    private static func normalizedLinkedInURL(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://") {
+            return trimmed
+        }
+        if trimmed.lowercased().contains("linkedin.com") {
+            return "https://\(trimmed)"
+        }
+        return "https://www.linkedin.com/in/\(trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/")))"
+    }
+
     private func editField(_ title: String, text: Binding<String>, placeholder: String = "") -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
@@ -623,6 +657,8 @@ struct ProfileView: View {
         goal = profile.goal.flatMap(NetworkingGoal.init(rawValue:))
         industry = profile.industry.flatMap(Industry.init(rawValue:))
         bio = profile.bio ?? ""
+        buildingIdea = profile.buildingIdea ?? ""
+        linkedInURL = profile.linkedInURL ?? ""
         skills = Set(profile.skills.compactMap(Skill.parse))
         unrecognizedSkills = profile.skills.filter { Skill.parse($0) == nil }
         isDiscoverable = profile.isDiscoverable
@@ -652,6 +688,10 @@ struct ProfileView: View {
         profile.goal = goal?.rawValue
         profile.industry = industry?.rawValue
         profile.bio = bio.isEmpty ? nil : bio
+        let idea = buildingIdea.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.buildingIdea = idea.isEmpty ? nil : idea
+        let linkedIn = Self.normalizedLinkedInURL(linkedInURL)
+        profile.linkedInURL = linkedIn
         profile.skills = Skill.allCases.filter(skills.contains).map(\.rawValue) + unrecognizedSkills
         profile.isDiscoverable = isDiscoverable
         Task {

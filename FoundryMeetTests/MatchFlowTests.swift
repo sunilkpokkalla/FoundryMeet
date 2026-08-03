@@ -90,6 +90,7 @@ final class CoffeeChatStateTests: XCTestCase {
             endsAt: startsAt?.addingTimeInterval(45 * 60),
             calendarEventId: nil,
             inviteStatus: "none",
+            outcomes: [:],
             createdAt: Date(),
             updatedAt: Date()
         )
