@@ -23,6 +23,8 @@ class AuthManager: ObservableObject {
     @Published var currentUser: User? = nil
     @Published private(set) var isDevSession: Bool = false
     @Published private(set) var sessionReady: Bool = false
+    /// True after Firebase Auth reports the first session state (signed in or out).
+    @Published private(set) var hasResolvedAuth: Bool = false
     @Published var hasCompletedOnboarding: Bool = false
 
     private var authStateListenerHandle: AuthStateDidChangeListenerHandle?
@@ -54,6 +56,7 @@ class AuthManager: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.currentUser = user
+                self.hasResolvedAuth = true
                 if self.isDevSession { return }
                 if let user {
                     await self.bootstrapSession(
