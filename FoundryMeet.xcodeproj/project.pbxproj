@@ -16,6 +16,7 @@
 		0EFB4FC937C77E770747A316 /* ProfileTaxonomy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15FB52A16FD7BA04C1596EBC /* ProfileTaxonomy.swift */; };
 		174FEEAC2ACEF6F8BB55CABC /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B39764E724A6424013283BC /* AuthManager.swift */; };
 		17B4A2B3AA784B964A7903B0 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = E6D10DC36E5A374E2D039F48 /* FirebaseAnalytics */; };
+		200C18558E17563F54624EEA /* MeetingCupsLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476B6A88EFD8663EEAD4D78F /* MeetingCupsLogo.swift */; };
 		26F9D337DB45A4B332487D85 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 809C84BC925A5E333FEB86C9 /* GoogleSignInSwift */; };
 		2BBB68BCFA19E20F69F33A53 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DBFEA2849FEF2171849697 /* ProfileView.swift */; };
 		2FAF758C635260F459538237 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D3839EA29840F52AE4351179 /* PrivacyInfo.xcprivacy */; };
@@ -83,6 +84,7 @@
 		2A6A1D566CD3C165DF08C3F1 /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
 		30719114F11A9A8A785BE232 /* GeoDistanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoDistanceTests.swift; sourceTree = "<group>"; };
 		38A92E9CBEFBCC318A343238 /* CalendarInviteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarInviteService.swift; sourceTree = "<group>"; };
+		476B6A88EFD8663EEAD4D78F /* MeetingCupsLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingCupsLogo.swift; sourceTree = "<group>"; };
 		4BB5CA5E9DB74D3D97293A0A /* MatchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchModels.swift; sourceTree = "<group>"; };
 		50B84F4B4F694E651E433F91 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5214ED58AD5A199257A859B1 /* LocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTests.swift; sourceTree = "<group>"; };
@@ -152,6 +154,7 @@
 				8C88E22C8C7EC98421373CA8 /* MainTabView.swift */,
 				CDB408B865F19C50DE72E2E1 /* MatchHistoryView.swift */,
 				E810429FF57576EB95726613 /* MatchNotesView.swift */,
+				476B6A88EFD8663EEAD4D78F /* MeetingCupsLogo.swift */,
 				2A6A1D566CD3C165DF08C3F1 /* MessagesView.swift */,
 				0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */,
 				BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */,
@@ -367,6 +370,7 @@
 				AC77A423A0ABE138DC9CCAA2 /* MatchHistoryView.swift in Sources */,
 				CC517F9D5639157B7495ADBF /* MatchModels.swift in Sources */,
 				0AA465D20905B74821980045 /* MatchNotesView.swift in Sources */,
+				200C18558E17563F54624EEA /* MeetingCupsLogo.swift in Sources */,
 				03E4EC03B4720A866A4D17F9 /* MessagesView.swift in Sources */,
 				E0F91EC570A2B8539AFC72DE /* NetworkingHubView.swift in Sources */,
 				6E445D3A6058A130EF450515 /* OnboardingView.swift in Sources */,
