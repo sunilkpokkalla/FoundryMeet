@@ -33,6 +33,8 @@
 	<string>FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>FoundryMeet adds coffee chats to your calendar and checks busy times for open slots.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>FoundryMeet uses your location once to fill your city and show nearby founders for coffee chats.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>FoundryMeet needs photo access so you can set a profile picture.</string>
 	<key>UIBackgroundModes</key>

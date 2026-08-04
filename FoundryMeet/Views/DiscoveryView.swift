@@ -457,27 +457,30 @@ struct DiscoveryProfileCard: View {
     var onDismiss: () -> Void
     var onConnect: () -> Void
 
+    /// Accepts full URLs or scheme-less LinkedIn paths (e.g. linkedin.com/in/…).
+    private static func normalizedProfileURL(_ raw: String?) -> URL? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty
+        else { return nil }
+        if let url = URL(string: trimmed), url.scheme != nil { return url }
+        return URL(string: "https://\(trimmed)")
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                Group {
-                    if let url = URL(string: profile.imgUrl), !profile.imgUrl.isEmpty {
-                        AsyncImage(url: url) { image in
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        } placeholder: {
-                            Color.gray.opacity(0.3)
-                        }
-                    } else {
-                        profile.accentColor.opacity(0.2)
-                            .overlay(
-                                Text(profile.initials)
-                                    .font(.system(size: 48, weight: .bold))
-                                    .foregroundColor(profile.accentColor)
-                            )
-                    }
+                ZStack {
+                    profile.accentColor.opacity(0.2)
+                        .overlay(
+                            Text(profile.initials)
+                                .font(.system(size: 48, weight: .bold))
+                                .foregroundColor(profile.accentColor)
+                        )
+                    RemotePhotoView(
+                        photoURL: profile.imgUrl.isEmpty ? nil : profile.imgUrl
+                    )
                 }
+                .frame(maxWidth: .infinity)
                 .frame(height: 192)
                 .clipped()
 
@@ -509,7 +512,7 @@ struct DiscoveryProfileCard: View {
                         }
                     }
                     Spacer()
-                    if let urlString = profile.linkedInURL, let url = URL(string: urlString) {
+                    if let url = Self.normalizedProfileURL(profile.linkedInURL) {
                         Link(destination: url) {
                             Image(systemName: "link")
                                 .font(.system(size: 14, weight: .semibold))
@@ -525,6 +528,24 @@ struct DiscoveryProfileCard: View {
             }
 
             VStack(alignment: .leading, spacing: 20) {
+                if let url = Self.normalizedProfileURL(profile.linkedInURL) {
+                    Link(destination: url) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "link")
+                            Text("View LinkedIn")
+                                .font(.system(size: 14, weight: .semibold))
+                            Spacer(minLength: 0)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(AppColors.primary)
+                        .padding(14)
+                        .background(AppColors.surfaceContainerLow)
+                        .cornerRadius(12)
+                    }
+                    .accessibilityLabel("Open LinkedIn profile")
+                }
+
                 if !profile.tags.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("TOP EXPERTISE")

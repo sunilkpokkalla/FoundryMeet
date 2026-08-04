@@ -1,19 +1,26 @@
 import SwiftUI
 
-/// City picker backed by MapKit autocomplete. Typing is always accepted, so a
-/// place nobody can look up — or a dead network — never blocks the form.
+/// City picker backed by MapKit autocomplete, with optional native GPS fill.
+/// Typing is always accepted, so a place nobody can look up — or a dead network —
+/// never blocks the form.
 struct LocationField: View {
     @Binding var place: ResolvedPlace?
     var placeholder: String = "e.g. San Francisco, CA"
 
     @StateObject private var search = LocationSearchService()
+    @StateObject private var currentLocation = CurrentLocationService()
     @State private var query = ""
     @State private var debounce: Task<Void, Never>?
     @State private var isResolving = false
+    @State private var locationError = ""
     @FocusState private var isFocused: Bool
 
     private var showsSuggestions: Bool {
         isFocused && !query.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var isBusy: Bool {
+        isResolving || search.isSearching || currentLocation.isLocating
     }
 
     var body: some View {
@@ -27,7 +34,7 @@ struct LocationField: View {
                     .submitLabel(.done)
                     .onSubmit { isFocused = false }
 
-                if isResolving || search.isSearching {
+                if isBusy {
                     ProgressView().scaleEffect(0.7)
                 } else if !query.isEmpty {
                     Button {
@@ -40,6 +47,16 @@ struct LocationField: View {
                     .accessibilityLabel("Clear location")
                 }
 
+                Button {
+                    useCurrentLocation()
+                } label: {
+                    Image(systemName: "location.fill")
+                        .foregroundColor(AppColors.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isBusy)
+                .accessibilityLabel("Use current location")
+
                 Image(systemName: place?.hasCoordinates == true ? "mappin.circle.fill" : "magnifyingglass")
                     .foregroundColor(place?.hasCoordinates == true ? AppColors.secondary : AppColors.onSurfaceVariant)
             }
@@ -51,8 +68,24 @@ struct LocationField: View {
                     .stroke(AppColors.secondary.opacity(0.2), lineWidth: 2)
             )
 
+            if !locationError.isEmpty {
+                Text(locationError)
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(hex: 0xB42318))
+            }
+
             if showsSuggestions {
                 VStack(spacing: 0) {
+                    suggestionRow(
+                        title: "Current location",
+                        subtitle: "Use GPS to fill your city",
+                        icon: "location.fill"
+                    ) {
+                        useCurrentLocation()
+                    }
+
+                    Divider().background(AppColors.hairline)
+
                     suggestionRow(
                         title: ResolvedPlace.remote.displayName,
                         subtitle: "Building from anywhere",
@@ -129,6 +162,7 @@ struct LocationField: View {
     /// Typing counts as a free-text place straight away, and only gains
     /// coordinates if the user picks something off the list.
     private func handleTyping(_ newValue: String) {
+        locationError = ""
         let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed != place?.displayName {
             place = trimmed.isEmpty ? nil : ResolvedPlace(displayName: trimmed)
@@ -149,10 +183,25 @@ struct LocationField: View {
     private func resolve(_ suggestion: LocationSuggestion) {
         isResolving = true
         isFocused = false
+        locationError = ""
         Task {
             let resolved = await search.resolve(suggestion)
             apply(resolved)
             isResolving = false
+        }
+    }
+
+    private func useCurrentLocation() {
+        isFocused = false
+        locationError = ""
+        search.clear()
+        Task {
+            do {
+                let resolved = try await currentLocation.fetchCurrentPlace()
+                apply(resolved)
+            } catch {
+                locationError = error.localizedDescription
+            }
         }
     }
 
@@ -161,6 +210,7 @@ struct LocationField: View {
         place = resolved
         query = resolved.displayName
         isFocused = false
+        locationError = ""
         search.clear()
     }
 
@@ -168,6 +218,7 @@ struct LocationField: View {
         debounce?.cancel()
         query = ""
         place = nil
+        locationError = ""
         search.clear()
     }
 }

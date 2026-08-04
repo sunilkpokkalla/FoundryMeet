@@ -83,6 +83,7 @@ struct MatchRequest: Codable, Identifiable, Equatable {
     var isPending: Bool { status == Status.pending.rawValue }
     var isAccepted: Bool { status == Status.accepted.rawValue }
     var isDeclined: Bool { status == Status.declined.rawValue }
+    var isWithdrawn: Bool { status == Status.withdrawn.rawValue }
 
     func isIncoming(for userId: String) -> Bool { recipientId == userId }
 

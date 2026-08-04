@@ -7,9 +7,12 @@ struct NetworkingHubView: View {
     @State private var statusMessage = ""
     @State private var showProfile = false
     @State private var activeThread: MessageThread? = nil
+    /// Holds a thread while the profile sheet dismisses — avoids SwiftUI double-sheet races.
+    @State private var pendingThread: MessageThread? = nil
     @State private var locationFilter = HubLocationFilter.default
     @State private var showCountryPicker = false
     @State private var showCityPicker = false
+    @StateObject private var currentLocation = CurrentLocationService()
 
     private var allBuilders: [DiscoveryCandidate] {
         let myId = authManager.userId ?? repository.profile?.id
@@ -35,12 +38,9 @@ struct NetworkingHubView: View {
         )
     }
 
-    private var canUseNearMe: Bool {
-        let profile = repository.profile
-        let hasLocation = profile?.location?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            && profile?.location?.lowercased() != "remote"
-        let hasCoordinates = profile?.latitude != nil && profile?.longitude != nil
-        return hasLocation || hasCoordinates
+    /// Near me needs coordinates for distance matching; a typed city alone is not enough.
+    private var hasNearMeCoordinates: Bool {
+        repository.profile?.latitude != nil && repository.profile?.longitude != nil
     }
 
     var body: some View {
@@ -112,26 +112,32 @@ struct NetworkingHubView: View {
             .refreshable {
                 try? await repository.refreshAll()
             }
-            .sheet(item: $selectedBuilder) { builder in
+            .sheet(item: $selectedBuilder, onDismiss: {
+                guard let thread = pendingThread else { return }
+                pendingThread = nil
+                // Present after the detail sheet finishes dismissing.
+                DispatchQueue.main.async {
+                    activeThread = thread
+                }
+            }) { builder in
                 BuilderDetailView(builder: builder) { action in
-                    Task {
-                        do {
-                            switch action {
-                            case .connect:
-                                try await repository.requestMatch(with: builder)
-                                statusMessage = "Request sent to \(builder.name). You can pick a time once they accept."
-                                selectedBuilder = nil
-                            case .message:
-                                let thread = try await repository.openOrCreateThread(with: builder)
-                                selectedBuilder = nil
-                                activeThread = thread
-                            }
-                        } catch {
-                            statusMessage = error.localizedDescription
+                    do {
+                        switch action {
+                        case .connect:
+                            try await repository.requestMatch(with: builder)
+                            statusMessage = "Request sent to \(builder.name). You can pick a time once they accept."
+                            selectedBuilder = nil
+                        case .message:
+                            let thread = try await repository.openOrCreateThread(with: builder)
+                            pendingThread = thread
+                            selectedBuilder = nil
                         }
+                    } catch {
+                        statusMessage = error.localizedDescription
                     }
                 }
                 .environmentObject(authManager)
+                .environmentObject(repository)
             }
             .sheet(item: $activeThread) { thread in
                 NavigationStack {
@@ -173,14 +179,14 @@ struct NetworkingHubView: View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    if canUseNearMe {
-                        FilterChip(
-                            text: HubLocationScope.nearMe.title,
-                            icon: HubLocationScope.nearMe.icon,
-                            isSelected: locationFilter.scope == .nearMe
-                        ) {
-                            applyFilter(HubLocationFilter(scope: .nearMe))
-                        }
+                    FilterChip(
+                        text: currentLocation.isLocating
+                            ? "Locating…"
+                            : HubLocationScope.nearMe.title,
+                        icon: HubLocationScope.nearMe.icon,
+                        isSelected: locationFilter.scope == .nearMe
+                    ) {
+                        Task { await selectNearMe() }
                     }
 
                     FilterChip(
@@ -335,15 +341,9 @@ struct NetworkingHubView: View {
 
     private func initialFilter() -> HubLocationFilter {
         let saved = HubLocationFilterStore.load(userId: authManager.userId)
-        if saved.scope == .nearMe && !canUseNearMe {
+        // Near me is opt-in — defaulting to it made early networks look empty.
+        if saved.scope == .nearMe && !hasNearMeCoordinates {
             return .default
-        }
-        if saved.scope == .nearMe {
-            return saved
-        }
-        // First launch with a home base: prefer Near me so Hub feels local.
-        if saved == .default && canUseNearMe {
-            return HubLocationFilter(scope: .nearMe)
         }
         return saved
     }
@@ -352,6 +352,30 @@ struct NetworkingHubView: View {
         locationFilter = filter
         HubLocationFilterStore.save(filter, userId: authManager.userId)
         statusMessage = ""
+    }
+
+    /// Uses saved GPS coordinates when present; otherwise asks native location once
+    /// and saves the reverse-geocoded city so Near me can work.
+    private func selectNearMe() async {
+        if hasNearMeCoordinates {
+            applyFilter(HubLocationFilter(scope: .nearMe))
+            return
+        }
+        do {
+            let place = try await currentLocation.fetchCurrentPlace()
+            guard var profile = repository.profile else {
+                statusMessage = "Sign in to use Near me."
+                return
+            }
+            profile.location = place.displayName
+            profile.latitude = place.latitude
+            profile.longitude = place.longitude
+            try await repository.updateProfile(profile)
+            applyFilter(HubLocationFilter(scope: .nearMe))
+            statusMessage = "Using \(place.displayName) for Near me."
+        } catch {
+            statusMessage = error.localizedDescription
+        }
     }
 }
 
@@ -499,14 +523,23 @@ enum BuilderAction {
 
 struct BuilderDetailView: View {
     var builder: DiscoveryCandidate
-    var onAction: (BuilderAction) -> Void
+    var onAction: (BuilderAction) async -> Void
     @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject private var repository: AppRepository
     @Environment(\.dismiss) private var dismiss
     @State private var isWorking = false
 
     private var isSelf: Bool {
         guard let myId = authManager.userId else { return false }
         return builder.id == myId
+    }
+
+    private var canMessage: Bool {
+        repository.hasAcceptedMatch(with: builder.id)
+    }
+
+    private var matchStatus: MatchRequest.Status? {
+        repository.matchStatus(with: builder.id)
     }
 
     private var aboutText: String? {
@@ -518,6 +551,29 @@ struct BuilderDetailView: View {
             return builder.desc
         }
         return nil
+    }
+
+    /// Public before accept — helps people decide whether to request a chat.
+    private var linkedInURL: URL? {
+        guard let raw = builder.linkedInURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty
+        else { return nil }
+        if let url = URL(string: raw), url.scheme != nil { return url }
+        return URL(string: "https://\(raw)")
+    }
+
+    private var matchStatusPendingCopy: String {
+        guard let userId = authManager.userId,
+              let match = repository.matchRequests.first(where: {
+                  Set($0.participantIds) == Set([userId, builder.id])
+              })
+        else {
+            return "Coffee chat request pending. Messaging unlocks after they accept."
+        }
+        if match.isIncoming(for: userId) {
+            return "They requested a coffee chat. Accept it in Schedule to unlock messaging."
+        }
+        return "Request sent. Messaging unlocks after they accept."
     }
 
     var body: some View {
@@ -556,6 +612,16 @@ struct BuilderDetailView: View {
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(AppColors.onSurfaceVariant)
                                         .padding(.top, 2)
+                                }
+
+                                if let linkedInURL = linkedInURL {
+                                    Link(destination: linkedInURL) {
+                                        Label("View LinkedIn", systemImage: "link")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(AppColors.primary)
+                                            .padding(.top, 6)
+                                    }
+                                    .accessibilityLabel("Open LinkedIn profile")
                                 }
                             }
                             .padding(.horizontal, 24)
@@ -608,40 +674,61 @@ struct BuilderDetailView: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 20)
                     } else {
-                        HStack(spacing: 12) {
-                            Button {
-                                isWorking = true
-                                onAction(.message)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "message.fill")
-                                    Text("Message")
-                                        .font(.system(size: 16, weight: .semibold))
+                        VStack(spacing: 10) {
+                            if canMessage {
+                                Button {
+                                    Task {
+                                        isWorking = true
+                                        defer { isWorking = false }
+                                        await onAction(.message)
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "message.fill")
+                                        Text("Message")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(AppColors.primary)
+                                    .foregroundColor(AppColors.onPrimary)
+                                    .cornerRadius(12)
                                 }
+                                .disabled(isWorking)
+                            } else if matchStatus == .pending {
+                                Text(
+                                    matchStatusPendingCopy
+                                )
+                                .font(.system(size: 13))
+                                .foregroundColor(AppColors.onSurfaceVariant)
+                                .multilineTextAlignment(.center)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(AppColors.surfaceContainerHigh)
-                                .foregroundColor(AppColors.onSurface)
-                                .cornerRadius(12)
-                            }
-                            .disabled(isWorking)
+                                .padding(.vertical, 8)
+                            } else {
+                                Button {
+                                    Task {
+                                        isWorking = true
+                                        defer { isWorking = false }
+                                        await onAction(.connect)
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "cup.and.saucer.fill")
+                                        Text("Request Chat")
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(AppColors.primary)
+                                    .foregroundColor(AppColors.onPrimary)
+                                    .cornerRadius(12)
+                                }
+                                .disabled(isWorking)
 
-                            Button {
-                                isWorking = true
-                                onAction(.connect)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "cup.and.saucer.fill")
-                                    Text("Request Chat")
-                                        .font(.system(size: 16, weight: .semibold))
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(AppColors.primary)
-                                .foregroundColor(AppColors.onPrimary)
-                                .cornerRadius(12)
+                                Text("Messaging unlocks after they accept.")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(AppColors.onSurfaceVariant)
                             }
-                            .disabled(isWorking)
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 12)

@@ -38,6 +38,7 @@ enum GeoDistance {
     }
 
     /// Prefer coordinate distance; fall back to city-name equality.
+    /// Remote profiles are never "nearby" for a coffee chat.
     static func isNearby(
         myLocation: String?,
         myLatitude: Double?,
@@ -46,6 +47,9 @@ enum GeoDistance {
         theirLatitude: Double?,
         theirLongitude: Double?
     ) -> Bool {
+        if LocationParts.isRemote(theirLocation) || LocationParts.isRemote(myLocation) {
+            return false
+        }
         if let mineLat = myLatitude, let mineLon = myLongitude,
            let theirsLat = theirLatitude, let theirsLon = theirLongitude {
             return kilometers(

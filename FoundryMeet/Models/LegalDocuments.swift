@@ -48,7 +48,7 @@ enum LegalDocument: String, Identifiable, CaseIterable {
     • Account information: email address, display name, and sign-in provider (Apple, Google, or email).
     • Profile information you provide: role, location (including approximate coordinates when you pick a place), stages, industry, skills, goals, bio, what you are building, LinkedIn URL, photo, availability windows, and verified-credential links.
     • Usage data needed to operate matching and messaging: match requests, coffee chat proposals and outcomes, messages you send, and device push tokens.
-    • Device permissions you grant: photo library (profile photo), calendar (coffee chat events and busy times). We do not access your precise GPS location; city coordinates come from place search when you select a location.
+    • Device permissions you grant: photo library (profile photo), calendar (coffee chat events and busy times), and location when in use (optional). If you tap “current location” or Near me, we read your GPS once to reverse-geocode a city name and approximate coordinates for nearby matching. We do not track you in the background.
 
     How we use information
     • To create and maintain your account and profile.

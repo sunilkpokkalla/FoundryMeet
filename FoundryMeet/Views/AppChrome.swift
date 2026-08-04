@@ -35,61 +35,38 @@ struct AppHeader: View {
     }
 }
 
-/// Circular avatar used in the header and elsewhere. Supports https and local file URLs.
-/// Uses URLSession (not AsyncImage) so Firebase Storage / file:// loads reliably and
-/// re-uploads of the same path refresh instead of sticking on a cached failure.
-struct ProfileAvatarView: View {
+/// Loads remote / local photos via URLSession so Firebase Storage and `file://`
+/// URLs work reliably (AsyncImage often caches stale failures).
+struct RemotePhotoView: View {
     var photoURL: String?
-    var initials: String = ""
-    var size: CGFloat = 36
-    /// Optional tint for the initials placeholder (Hub cards, profile sheets).
-    var fallbackFill: Color? = nil
-    var fallbackForeground: Color? = nil
+    var contentMode: ContentMode = .fill
 
     @State private var image: UIImage?
     @State private var didFail = false
+
+    var showsFallback: Bool {
+        let trimmed = photoURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty || didFail
+    }
 
     var body: some View {
         Group {
             if let image {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
-            } else if shouldShowFallback {
-                fallback
+                    .aspectRatio(contentMode: contentMode)
+            } else if showsFallback {
+                Color.clear
             } else {
                 ZStack {
-                    fallback
+                    Color.gray.opacity(0.2)
                     ProgressView()
                         .controlSize(.mini)
                 }
             }
         }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
         .task(id: photoURL) {
             await loadImage()
-        }
-    }
-
-    private var shouldShowFallback: Bool {
-        let trimmed = photoURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty || didFail
-    }
-
-    private var fallback: some View {
-        ZStack {
-            Circle().fill(fallbackFill ?? AppColors.surfaceContainerLowest)
-            if initials.isEmpty {
-                Image(systemName: "person")
-                    .font(.system(size: size * 0.36, weight: .medium))
-                    .foregroundColor(fallbackForeground ?? AppColors.onSurface.opacity(0.85))
-            } else {
-                Text(String(initials.prefix(2)).uppercased())
-                    .font(.system(size: size * 0.34, weight: .semibold))
-                    .foregroundColor(fallbackForeground ?? AppColors.onSurface.opacity(0.85))
-            }
         }
     }
 
@@ -133,7 +110,7 @@ struct ProfileAvatarView: View {
     }
 
     /// Accepts https URLs and file paths (`file://…` or absolute POSIX paths).
-    private static func resolvedURL(from string: String) -> URL? {
+    static func resolvedURL(from string: String) -> URL? {
         if let url = URL(string: string), url.scheme != nil {
             return url
         }
@@ -141,6 +118,41 @@ struct ProfileAvatarView: View {
             return URL(fileURLWithPath: string)
         }
         return nil
+    }
+}
+
+/// Circular avatar used in the header and elsewhere.
+struct ProfileAvatarView: View {
+    var photoURL: String?
+    var initials: String = ""
+    var size: CGFloat = 36
+    /// Optional tint for the initials placeholder (Hub cards, profile sheets).
+    var fallbackFill: Color? = nil
+    var fallbackForeground: Color? = nil
+
+    var body: some View {
+        ZStack {
+            fallback
+            RemotePhotoView(photoURL: photoURL)
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(AppColors.hairline, lineWidth: 1))
+    }
+
+    private var fallback: some View {
+        ZStack {
+            Circle().fill(fallbackFill ?? AppColors.surfaceContainerLowest)
+            if initials.isEmpty {
+                Image(systemName: "person")
+                    .font(.system(size: size * 0.36, weight: .medium))
+                    .foregroundColor(fallbackForeground ?? AppColors.onSurface.opacity(0.85))
+            } else {
+                Text(String(initials.prefix(2)).uppercased())
+                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .foregroundColor(fallbackForeground ?? AppColors.onSurface.opacity(0.85))
+            }
+        }
     }
 }
 

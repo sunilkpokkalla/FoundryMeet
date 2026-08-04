@@ -148,6 +148,10 @@ final class LocationPartsTests: XCTestCase {
         XCTAssertTrue(LocationParts.matchesCountry("Berlin, Germany", country: "Germany"))
         XCTAssertTrue(LocationParts.matchesCity("Austin, TX", cityLabel: "Austin, TX"))
         XCTAssertFalse(LocationParts.matchesCity("Austin, TX", cityLabel: "Berlin, Germany"))
+        XCTAssertFalse(
+            LocationParts.matchesCity("Springfield, IL", cityLabel: "Springfield, MO"),
+            "Same city name in different states must not collide"
+        )
     }
 
     func testHubFilterScopes() {

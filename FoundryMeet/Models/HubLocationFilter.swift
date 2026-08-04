@@ -178,6 +178,11 @@ enum LocationParts {
             let right = target.city?.lowercased(),
             left == right
         else { return false }
+        // Springfield, IL must not match Springfield, MO.
+        if let leftRegion = parsed.region, let rightRegion = target.region,
+           leftRegion.caseInsensitiveCompare(rightRegion) != .orderedSame {
+            return false
+        }
         if let leftCountry = parsed.country, let rightCountry = target.country {
             return leftCountry.caseInsensitiveCompare(rightCountry) == .orderedSame
         }
@@ -264,18 +269,18 @@ enum HubLocationFilterStore {
 
 extension Array where Element == DiscoveryCandidate {
     func filtered(
-        by filter: HubLocationFilter,
+        by locationFilter: HubLocationFilter,
         myLocation: String?,
         myLatitude: Double?,
         myLongitude: Double?
     ) -> [DiscoveryCandidate] {
-        switch filter.scope {
+        switch locationFilter.scope {
         case .all:
             return self
         case .remote:
-            return filter { LocationParts.isRemote($0.location) }
+            return self.filter { LocationParts.isRemote($0.location) }
         case .nearMe:
-            return filter {
+            return self.filter {
                 if LocationParts.isRemote($0.location) { return false }
                 return GeoDistance.isNearby(
                     myLocation: myLocation,
@@ -287,11 +292,11 @@ extension Array where Element == DiscoveryCandidate {
                 )
             }
         case .country:
-            guard let country = filter.country, !country.isEmpty else { return self }
-            return filter { LocationParts.matchesCountry($0.location, country: country) }
+            guard let country = locationFilter.country, !country.isEmpty else { return self }
+            return self.filter { LocationParts.matchesCountry($0.location, country: country) }
         case .city:
-            guard let city = filter.city, !city.isEmpty else { return self }
-            return filter { LocationParts.matchesCity($0.location, cityLabel: city) }
+            guard let city = locationFilter.city, !city.isEmpty else { return self }
+            return self.filter { LocationParts.matchesCity($0.location, cityLabel: city) }
         }
     }
 }

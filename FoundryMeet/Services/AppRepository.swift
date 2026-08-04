@@ -65,6 +65,22 @@ final class AppRepository: ObservableObject {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
+    /// Messaging and scheduling unlock only after both sides agree to meet.
+    func hasAcceptedMatch(with otherUserId: String) -> Bool {
+        guard let userId else { return false }
+        return matchRequests.contains {
+            $0.isAccepted && Set($0.participantIds) == Set([userId, otherUserId])
+        }
+    }
+
+    func matchStatus(with otherUserId: String) -> MatchRequest.Status? {
+        guard let userId else { return nil }
+        guard let match = matchRequests.first(where: {
+            Set($0.participantIds) == Set([userId, otherUserId])
+        }) else { return nil }
+        return MatchRequest.Status(rawValue: match.status)
+    }
+
     /// Proposed times I need to confirm or turn down.
     var chatsAwaitingMyResponse: [CoffeeChat] {
         guard let userId else { return [] }
@@ -139,7 +155,7 @@ final class AppRepository: ObservableObject {
                             .sorted { $0.updatedAt > $1.updatedAt }
                         let interactions = (try? await self.loadInteractions(userId: userId)) ?? []
                         self.excludedCandidateIds = Set(interactions.map(\.candidateId))
-                            .union(self.matchRequests.filter { !$0.isDeclined }.map { $0.otherPartyId(for: userId) })
+                            .union(self.matchRequests.filter { $0.isPending || $0.isAccepted }.map { $0.otherPartyId(for: userId) })
                         await self.rebuildDiscoveryFeed()
                     }
                 }
@@ -285,6 +301,14 @@ final class AppRepository: ObservableObject {
 
     func updateProfile(_ updated: UserProfile) async throws {
         var next = updated
+        // Remote / cleared locations must not keep stale coordinates for Nearby.
+        let locationBlank = next.location?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true
+        if LocationParts.isRemote(next.location) || locationBlank {
+            next.latitude = nil
+            next.longitude = nil
+        }
         next.updatedAt = Date()
         try await saveProfile(next)
         profile = next
@@ -754,7 +778,7 @@ final class AppRepository: ObservableObject {
             startRealtimeSync()
         }
         excludedCandidateIds = Set(interactions.map(\.candidateId))
-            .union(matchRequests.filter { !$0.isDeclined }.map { $0.otherPartyId(for: userId) })
+            .union(matchRequests.filter { $0.isPending || $0.isAccepted }.map { $0.otherPartyId(for: userId) })
         await rebuildDiscoveryFeed()
         await syncCalendarState()
     }
@@ -793,14 +817,15 @@ final class AppRepository: ObservableObject {
         }
         if filters.nearbyOnly {
             candidates = candidates.filter {
-                GeoDistance.isNearby(
-                    myLocation: myLocation,
-                    myLatitude: myLat,
-                    myLongitude: myLon,
-                    theirLocation: $0.location,
-                    theirLatitude: $0.latitude,
-                    theirLongitude: $0.longitude
-                )
+                !LocationParts.isRemote($0.location)
+                    && GeoDistance.isNearby(
+                        myLocation: myLocation,
+                        myLatitude: myLat,
+                        myLongitude: myLon,
+                        theirLocation: $0.location,
+                        theirLatitude: $0.latitude,
+                        theirLongitude: $0.longitude
+                    )
             }
         }
 
@@ -832,13 +857,24 @@ final class AppRepository: ObservableObject {
             }
             .map(\.element)
 
-        // Pin the interactive demo partner so testers can always run the full loop.
-        let demo = DemoPartner.candidate(for: profile)
-        if !excludedCandidateIds.contains(demo.id) {
-            ranked.removeAll { $0.id == demo.id }
-            ranked.insert(demo, at: 0)
+        // Demo partner is for local/debug end-to-end testing only — never pin in
+        // production App Store builds against live Firebase.
+        if Self.shouldPinDemoPartner(usesLocalStore: usesLocalStore) {
+            let demo = DemoPartner.candidate(for: profile)
+            if !excludedCandidateIds.contains(demo.id) {
+                ranked.removeAll { $0.id == demo.id }
+                ranked.insert(demo, at: 0)
+            }
         }
         discoveryFeed = ranked
+    }
+
+    private static func shouldPinDemoPartner(usesLocalStore: Bool) -> Bool {
+#if DEBUG
+        return true
+#else
+        return usesLocalStore
+#endif
     }
 
     func dismissCandidate(_ candidate: DiscoveryCandidate) async throws {
@@ -999,6 +1035,12 @@ final class AppRepository: ObservableObject {
         updated.updatedAt = Date()
         try await saveMatchRequest(updated)
         upsertMatchRequest(updated)
+
+        // Free the person back into Discover after an unanswered withdraw.
+        let otherId = request.recipientId
+        try await clearInteraction(candidateId: otherId)
+        excludedCandidateIds.remove(otherId)
+        await rebuildDiscoveryFeed()
     }
 
     func updateChatNotes(chatId: String, notes: String) async throws {
@@ -1033,6 +1075,8 @@ final class AppRepository: ObservableObject {
     func openOrCreateThread(with candidate: DiscoveryCandidate) async throws -> MessageThread {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
         guard candidate.id != userId else { throw RepositoryError.selfRequest }
+        guard hasAcceptedMatch(with: candidate.id) else { throw RepositoryError.matchNotAccepted }
+
         let sortedIds = [userId, candidate.id].sorted()
         let threadId = sortedIds.joined(separator: "_")
 
@@ -1071,6 +1115,12 @@ final class AppRepository: ObservableObject {
         guard let userId else { throw RepositoryError.notSignedIn }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw RepositoryError.invalidInput }
+
+        let thread = threads.first(where: { $0.id == threadId })
+        let otherId = thread?.participantIds.first { $0 != userId }
+        if let otherId, !hasAcceptedMatch(with: otherId) {
+            throw RepositoryError.matchNotAccepted
+        }
 
         let message = ChatMessage(
             id: UUID().uuidString,
@@ -1189,6 +1239,19 @@ final class AppRepository: ObservableObject {
         try await db.collection("users").document(userId)
             .collection("interactions").document(candidateId)
             .setData(interaction.firestoreData, merge: true)
+    }
+
+    private func clearInteraction(candidateId: String) async throws {
+        guard let userId else { return }
+        if usesLocalStore {
+            var all = (try? readLocal(key: "interactions_\(userId)", as: [ProfileInteraction].self)) ?? []
+            all.removeAll { $0.id == candidateId || $0.candidateId == candidateId }
+            try writeLocal(all, key: "interactions_\(userId)")
+            return
+        }
+        try await db.collection("users").document(userId)
+            .collection("interactions").document(candidateId)
+            .delete()
     }
 
     private func loadInteractions(userId: String) async throws -> [ProfileInteraction] {
@@ -1372,7 +1435,8 @@ enum RepositoryError: LocalizedError {
         case .selfRequest: return "You can't send a coffee chat request to yourself."
         case .duplicateRequest: return "You already have a request open with this person."
         case .requestAlreadyAnswered: return "This request was already answered."
-        case .matchNotAccepted: return "Wait for the request to be accepted before picking a time."
+        case .matchNotAccepted:
+            return "Messaging unlocks after they accept your coffee chat request."
         case .chatNotActive: return "This coffee chat is no longer active."
         case .sampleProfile: return "This is a sample profile and can't receive requests."
         case .reauthenticationRequired:
@@ -1399,20 +1463,32 @@ extension UserProfile {
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": Timestamp(date: updatedAt)
         ]
-        if let role { data["role"] = role }
-        if let location { data["location"] = location }
-        if let latitude { data["latitude"] = latitude }
-        if let longitude { data["longitude"] = longitude }
-        if !stages.isEmpty {
-            data["stages"] = stages
-            data["stage"] = stages[0]
+        // Always write clearable fields so merge:true does not revive old values
+        // after the user blanks bio, switches to Remote, removes LinkedIn, etc.
+        data["role"] = role ?? NSNull()
+        data["goal"] = goal ?? NSNull()
+        data["bio"] = bio ?? NSNull()
+        data["buildingIdea"] = buildingIdea ?? NSNull()
+        data["linkedInURL"] = linkedInURL ?? NSNull()
+        data["industry"] = industry ?? NSNull()
+        data["photoURL"] = photoURL ?? NSNull()
+        data["stages"] = stages
+        if let first = stages.first {
+            data["stage"] = first
+        } else {
+            data["stage"] = NSNull()
         }
-        if let goal { data["goal"] = goal }
-        if let bio { data["bio"] = bio }
-        if let buildingIdea { data["buildingIdea"] = buildingIdea }
-        if let linkedInURL { data["linkedInURL"] = linkedInURL }
-        if let industry { data["industry"] = industry }
-        if let photoURL { data["photoURL"] = photoURL }
+
+        let remoteOrMissing = LocationParts.isRemote(location)
+            || (location?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        data["location"] = location ?? NSNull()
+        if remoteOrMissing {
+            data["latitude"] = NSNull()
+            data["longitude"] = NSNull()
+        } else {
+            data["latitude"] = latitude ?? NSNull()
+            data["longitude"] = longitude ?? NSNull()
+        }
         return data
     }
 

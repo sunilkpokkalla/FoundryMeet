@@ -100,6 +100,14 @@ service cloud.firestore {
           || request.auth.uid != resource.data.get('proposedById', '');
       }
 
+      // Private notes are per-user — peers may not edit each other's keys.
+      function privateNotesOk() {
+        let before = resource.data.get('privateNotes', {});
+        let after = request.resource.data.get('privateNotes', {});
+        return after == before
+          || after.diff(before).affectedKeys().hasOnly([request.auth.uid]);
+      }
+
       // Demo partner auto-confirms times proposed by the signed-in user.
       function confirmingDemoChat() {
         return request.resource.data.status == 'confirmed'
@@ -133,20 +141,36 @@ service cloud.firestore {
       allow update: if signedIn()
         && request.auth.uid in resource.data.participantIds
         && request.resource.data.participantIds == resource.data.participantIds
+        && privateNotesOk()
         && (notSelfConfirming() || confirmingDemoChat());
       allow delete: if false;
     }
 
     match /threads/{threadId} {
+      // Messaging only after the coffee-chat request is accepted (demo excepted).
+      function threadMatchAccepted() {
+        let pair = request.resource.data.participantIds;
+        return get(/databases/$(database)/documents/matches/$(pair[0] + '_' + pair[1])).data.status == 'accepted'
+          || 'demo-partner-maya' in pair;
+      }
+
+      function existingThreadMatchAccepted() {
+        let pair = resource.data.participantIds;
+        return get(/databases/$(database)/documents/matches/$(pair[0] + '_' + pair[1])).data.status == 'accepted'
+          || 'demo-partner-maya' in pair;
+      }
+
       allow read: if signedIn() && request.auth.uid in resource.data.participantIds;
       // Threads are between two distinct people — no self-chat.
       allow create: if signedIn()
         && request.auth.uid in request.resource.data.participantIds
         && request.resource.data.participantIds.size() == 2
-        && request.resource.data.participantIds[0] != request.resource.data.participantIds[1];
+        && request.resource.data.participantIds[0] != request.resource.data.participantIds[1]
+        && threadMatchAccepted();
       allow update: if signedIn()
         && request.auth.uid in request.resource.data.participantIds
-        && request.resource.data.participantIds == resource.data.participantIds;
+        && request.resource.data.participantIds == resource.data.participantIds
+        && existingThreadMatchAccepted();
       allow delete: if false;
 
       match /messages/{messageId} {
@@ -156,7 +180,13 @@ service cloud.firestore {
         allow create: if signedIn()
           && request.auth.uid in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds
           && (
-            request.auth.uid == request.resource.data.senderId
+            (
+              request.auth.uid == request.resource.data.senderId
+              && (
+                get(/databases/$(database)/documents/matches/$(threadId)).data.status == 'accepted'
+                || 'demo-partner-maya' in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds
+              )
+            )
             || (
               request.resource.data.senderId == 'demo-partner-maya'
               && 'demo-partner-maya' in get(/databases/$(database)/documents/threads/$(threadId)).data.participantIds

@@ -418,9 +418,26 @@ struct ProfileView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 14)
                 }
-                if let linkedIn = profile.linkedInURL, !linkedIn.isEmpty {
+                if let linkedIn = profile.linkedInURL, !linkedIn.isEmpty,
+                   let url = URL(string: linkedIn) ?? URL(string: "https://\(linkedIn)") {
                     divider
-                    detailRow("LinkedIn", linkedIn)
+                    Link(destination: url) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("LinkedIn")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(AppColors.onSurfaceVariant)
+                            Spacer(minLength: 12)
+                            HStack(spacing: 4) {
+                                Text("View profile")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundColor(AppColors.primary)
+                        }
+                        .padding(.vertical, 14)
+                    }
+                    .accessibilityLabel("Open LinkedIn profile")
                 }
                 if let bio = profile.bio, !bio.isEmpty {
                     divider
@@ -750,8 +767,13 @@ struct ProfileView: View {
         profile.displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.role = role.isEmpty ? nil : role
         profile.location = place?.displayName
-        profile.latitude = place?.latitude
-        profile.longitude = place?.longitude
+        if LocationParts.isRemote(place?.displayName) || place == nil {
+            profile.latitude = nil
+            profile.longitude = nil
+        } else {
+            profile.latitude = place?.latitude
+            profile.longitude = place?.longitude
+        }
         // Save what was actually picked, not what the current role offers: an
         // off-taxonomy role falls back to Builder and would strip valid answers.
         profile.stages = StartupStage.allCases.filter(stages.contains).map(\.rawValue) + unrecognizedStages
