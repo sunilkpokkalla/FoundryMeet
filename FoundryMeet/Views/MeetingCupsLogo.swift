@@ -36,14 +36,15 @@ struct BrandSplashView: View {
                     SplashSparkView(spark: spark, active: sparksActive, canvas: geo.size)
                 }
 
+                // Transparent mark on paper surface — no white card behind the asset.
                 Image("Logo")
                     .resizable()
+                    .renderingMode(.original)
                     .scaledToFit()
                     .frame(width: logoSide, height: logoSide)
-                    .clipShape(RoundedRectangle(cornerRadius: logoSide * 0.22, style: .continuous))
-                    .shadow(color: Color.black.opacity(0.10), radius: 28, x: 0, y: 12)
+                    .shadow(color: AppColors.secondary.opacity(0.18), radius: 20, x: 0, y: 8)
                     .opacity(logoVisible ? 1 : 0)
-                    .scaleEffect(logoVisible ? 1 : 0.82)
+                    .scaleEffect(logoVisible ? 1 : 0.86)
                     .accessibilityLabel("FoundryMeet")
             }
             .frame(width: geo.size.width, height: geo.size.height)

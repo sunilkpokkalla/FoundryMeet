@@ -302,16 +302,22 @@ struct AppFormSheet: View {
                             Text(field.label)
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(AppColors.onSurfaceVariant)
-                            TextField(field.placeholder, text: field.text)
-                                .padding(14)
-                                .background(AppColors.surfaceContainerLowest)
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(AppColors.hairline, lineWidth: 1)
-                                )
-                                .textInputAutocapitalization(field.autocapitalize ? .sentences : .never)
-                                .keyboardType(field.keyboard)
+                            Group {
+                                if field.isSecure {
+                                    SecureField(field.placeholder, text: field.text)
+                                } else {
+                                    TextField(field.placeholder, text: field.text)
+                                        .textInputAutocapitalization(field.autocapitalize ? .sentences : .never)
+                                        .keyboardType(field.keyboard)
+                                }
+                            }
+                            .padding(14)
+                            .background(AppColors.surfaceContainerLowest)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(AppColors.hairline, lineWidth: 1)
+                            )
                         }
                     }
 
@@ -375,6 +381,7 @@ struct AppFormField: Identifiable {
     let text: Binding<String>
     var keyboard: UIKeyboardType = .default
     var autocapitalize: Bool = true
+    var isSecure: Bool = false
 }
 
 extension View {

@@ -59,6 +59,7 @@ struct ContentView: View {
                 AppColors.surface.ignoresSafeArea()
                 Image("Logo")
                     .resizable()
+                    .renderingMode(.original)
                     .scaledToFit()
                     .frame(width: logoSide, height: logoSide)
                     .accessibilityLabel(message ?? "FoundryMeet")

@@ -156,7 +156,13 @@ struct OnboardingView: View {
                 )
                 withAnimation { isOnboardingCompleted = true }
             } catch {
-                errorMessage = error.localizedDescription
+                let text = error.localizedDescription
+                if text.localizedCaseInsensitiveContains("insufficient permissions")
+                    || text.localizedCaseInsensitiveContains("permission-denied") {
+                    errorMessage = "Couldn't save your profile yet. Sign out, sign back in, and try again."
+                } else {
+                    errorMessage = text
+                }
             }
             isSaving = false
         }

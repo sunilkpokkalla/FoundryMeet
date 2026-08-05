@@ -32,6 +32,12 @@ service cloud.firestore {
         allow read, write: if isSelf(userId);
         allow delete: if isSelf(userId);
       }
+
+      // Block list — each person only manages their own.
+      match /blocks/{blockedId} {
+        allow read, write: if isSelf(userId)
+          && blockedId != userId;
+      }
     }
 
     match /matches/{matchId} {
@@ -220,10 +226,5 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Block list lives under the blocker so each person controls their own.
-    match /users/{userId}/blocks/{blockedId} {
-      allow read, write: if isSelf(userId)
-        && blockedId != userId;
-    }
   }
 }

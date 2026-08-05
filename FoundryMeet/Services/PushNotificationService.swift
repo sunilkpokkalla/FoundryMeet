@@ -46,8 +46,14 @@ final class PushNotificationService: NSObject, ObservableObject {
 
     func persistTokenIfNeeded(_ token: String) async {
         fcmToken = token
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let user = Auth.auth().currentUser else { return }
+        let uid = user.uid
         do {
+            // Avoid creating a bare user doc before onboarding — that race used to
+            // collide with the first profile write and surface as permission errors.
+            let doc = try await Firestore.firestore().collection("users").document(uid).getDocument()
+            guard doc.exists else { return }
+            _ = try await user.getIDToken()
             try await Firestore.firestore().collection("users").document(uid).setData([
                 "fcmTokens": FieldValue.arrayUnion([token]),
                 "updatedAt": Timestamp(date: Date())

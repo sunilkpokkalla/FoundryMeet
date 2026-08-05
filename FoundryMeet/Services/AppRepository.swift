@@ -117,6 +117,10 @@ final class AppRepository: ObservableObject {
         do {
             if useLocalStore {
                 try ensureLocalNetworkSeed()
+            } else {
+                // Firestore rejects the first write if the Auth ID token is not
+                // attached yet — that surfaces as "Missing or insufficient permissions."
+                try await ensureFirestoreAuthReady()
             }
             if var existing = try await loadProfile(userId: userId) {
                 if existing.email.isEmpty { existing.email = email }
@@ -137,10 +141,11 @@ final class AppRepository: ObservableObject {
                 try await saveProfile(created)
                 profile = created
             }
-            try await refreshAll()
+            // Profile must exist before onboarding; network sync is best-effort.
+            await refreshAllBestEffort()
             startRealtimeSync()
         } catch {
-            lastError = error.localizedDescription
+            lastError = friendlyFirestoreMessage(for: error)
         }
     }
 
@@ -313,10 +318,14 @@ final class AppRepository: ObservableObject {
         current.industry = industry?.rawValue
         current.onboardingCompleted = true
         current.updatedAt = Date()
+        if !usesLocalStore {
+            try await ensureFirestoreAuthReady()
+        }
         try await saveProfile(current)
         profile = current
         UserDefaults.standard.set(true, forKey: onboardingKey(for: userId))
-        try await refreshAll()
+        // Don't block finishing onboarding on discovery/match sync failures.
+        await refreshAllBestEffort()
     }
 
     func updateProfile(_ updated: UserProfile) async throws {
@@ -839,6 +848,21 @@ final class AppRepository: ObservableObject {
         rebuildExcludedIds(interactions: interactions, userId: userId)
         await rebuildDiscoveryFeed()
         await syncCalendarState()
+    }
+
+    /// Same as `refreshAll`, but never fails the caller — used after sign-in / onboarding
+    /// so a secondary rules mismatch (e.g. blocks) cannot strand the user.
+    func refreshAllBestEffort() async {
+        do {
+            try await refreshAll()
+            lastError = nil
+        } catch {
+            lastError = friendlyFirestoreMessage(for: error)
+            if listeners.isEmpty {
+                startRealtimeSync()
+            }
+            await rebuildDiscoveryFeed()
+        }
     }
 
     private func rebuildExcludedIds(interactions: [ProfileInteraction], userId: String) {
@@ -1406,9 +1430,39 @@ final class AppRepository: ObservableObject {
             let all = (try? readLocal(key: "blocks_\(userId)", as: [String].self)) ?? []
             return Set(all)
         }
-        let snapshot = try await db.collection("users").document(userId)
-            .collection("blocks").getDocuments()
-        return Set(snapshot.documents.map(\.documentID))
+        do {
+            let snapshot = try await db.collection("users").document(userId)
+                .collection("blocks").getDocuments()
+            return Set(snapshot.documents.map(\.documentID))
+        } catch {
+            // Older deployed rules may omit /blocks — never block the session on that.
+            if isPermissionDenied(error) { return [] }
+            throw error
+        }
+    }
+
+    /// Wait until Firebase Auth has an ID token Firestore can attach to requests.
+    private func ensureFirestoreAuthReady() async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw RepositoryError.notSignedIn
+        }
+        _ = try await user.getIDTokenResult(forcingRefresh: false)
+    }
+
+    private func isPermissionDenied(_ error: Error) -> Bool {
+        let ns = error as NSError
+        if ns.domain == FirestoreErrorDomain,
+           ns.code == FirestoreErrorCode.permissionDenied.rawValue {
+            return true
+        }
+        return ns.localizedDescription.localizedCaseInsensitiveContains("insufficient permissions")
+    }
+
+    private func friendlyFirestoreMessage(for error: Error) -> String {
+        if isPermissionDenied(error) {
+            return "Couldn't sync with the server (permissions). Sign out, sign back in, and try again. If it keeps happening, the Firestore rules may need redeploying."
+        }
+        return error.localizedDescription
     }
 
     private func saveMatchRequest(_ request: MatchRequest) async throws {
@@ -1574,6 +1628,10 @@ enum RepositoryError: LocalizedError {
     case sampleProfile
     case userBlocked
     case reauthenticationRequired
+    case passwordRequiredForDelete
+    case wrongPasswordForDelete
+    case reauthenticationFailed
+    case deleteCancelled
 
     var errorDescription: String? {
         switch self {
@@ -1590,7 +1648,15 @@ enum RepositoryError: LocalizedError {
         case .sampleProfile: return "This is a sample profile and can't receive requests."
         case .userBlocked: return "You've blocked this person."
         case .reauthenticationRequired:
-            return "For security, sign out, sign back in, then delete your account again."
+            return "Confirm your identity to finish deleting your account."
+        case .passwordRequiredForDelete:
+            return "Enter your password to delete your account."
+        case .wrongPasswordForDelete:
+            return "Incorrect password. Try again."
+        case .reauthenticationFailed:
+            return "Couldn't confirm your identity. Try deleting again."
+        case .deleteCancelled:
+            return "Account deletion cancelled."
         }
     }
 }

@@ -32,6 +32,8 @@ struct ProfileView: View {
     @State private var showReviewQueue = false
     @State private var legalDocument: LegalDocument?
     @State private var showDeleteConfirm = false
+    @State private var showDeletePassword = false
+    @State private var deletePassword = ""
     @State private var isDeletingAccount = false
     @State private var credTitle = ""
     @State private var credIssuer = ""
@@ -93,13 +95,37 @@ struct ProfileView: View {
             .sheet(isPresented: $showDeleteConfirm) {
                 AppConfirmSheet(
                     title: "Delete account?",
-                    message: "This permanently removes your FoundryMeet account and profile data. Your Apple or Google account stays intact. You may need to sign in again first if they ask for a recent login.",
+                    message: deleteConfirmMessage,
                     cancelTitle: "Keep account",
                     confirmTitle: "Delete account",
                     isDestructive: true,
                     onCancel: {},
                     onConfirm: {
-                        Task { await deleteAccount() }
+                        beginAccountDeletion()
+                    }
+                )
+            }
+            .sheet(isPresented: $showDeletePassword) {
+                AppFormSheet(
+                    title: "Confirm deletion",
+                    message: "Enter your FoundryMeet password to permanently delete this account.",
+                    fields: [
+                        AppFormField(
+                            label: "Password",
+                            placeholder: "Your password",
+                            text: $deletePassword,
+                            autocapitalize: false,
+                            isSecure: true
+                        )
+                    ],
+                    cancelTitle: "Cancel",
+                    confirmTitle: "Delete account",
+                    isDestructive: true,
+                    onCancel: {
+                        deletePassword = ""
+                    },
+                    onConfirm: {
+                        Task { await deleteAccount(password: deletePassword) }
                     }
                 )
             }
@@ -831,14 +857,43 @@ struct ProfileView: View {
         }
     }
 
-    private func deleteAccount() async {
+    private var deleteConfirmMessage: String {
+        switch authManager.accountAuthProvider {
+        case .password:
+            return "This permanently removes your FoundryMeet account and profile data. Next you’ll confirm with your password."
+        case .google:
+            return "This permanently removes your FoundryMeet account and profile data. Next you’ll confirm with Google. Your Google account stays intact."
+        case .apple:
+            return "This permanently removes your FoundryMeet account and profile data. Next you’ll confirm with Apple. Your Apple ID stays intact."
+        case .unknown:
+            return "This permanently removes your FoundryMeet account and profile data."
+        }
+    }
+
+    private func beginAccountDeletion() {
+        if authManager.requiresPasswordToDelete {
+            deletePassword = ""
+            showDeletePassword = true
+            return
+        }
+        Task { await deleteAccount() }
+    }
+
+    private func deleteAccount(password: String? = nil) async {
         isDeletingAccount = true
         statusMessage = ""
-        defer { isDeletingAccount = false }
+        defer {
+            isDeletingAccount = false
+            deletePassword = ""
+        }
         do {
-            try await authManager.deleteAccount()
+            try await authManager.deleteAccount(password: password)
             dismiss()
         } catch {
+            if case .deleteCancelled = error as? RepositoryError {
+                statusMessage = ""
+                return
+            }
             statusMessage = error.localizedDescription
         }
     }
