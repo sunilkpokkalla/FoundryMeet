@@ -72,6 +72,48 @@ enum AvailabilityEngine {
         }
         return order.map { ($0, map[$0] ?? []) }
     }
+
+    /// Slots that fit both people's weekly windows (uses the proposer's busy calendar).
+    static func overlappingSlots(
+        myWindows: [AvailabilityWindow],
+        theirWindows: [AvailabilityWindow],
+        from startDate: Date,
+        dayCount: Int = 14,
+        meetingMinutes: Int = 45,
+        stepMinutes: Int = 30,
+        myBusyIntervals: [(start: Date, end: Date)] = [],
+        calendar: Calendar = .current,
+        now: Date = Date()
+    ) -> [AvailableSlot] {
+        let mine = generateSlots(
+            windows: myWindows,
+            from: startDate,
+            dayCount: dayCount,
+            meetingMinutes: meetingMinutes,
+            stepMinutes: stepMinutes,
+            busyIntervals: myBusyIntervals,
+            calendar: calendar,
+            now: now
+        )
+        let theirs = generateSlots(
+            windows: theirWindows,
+            from: startDate,
+            dayCount: dayCount,
+            meetingMinutes: meetingMinutes,
+            stepMinutes: stepMinutes,
+            busyIntervals: [],
+            calendar: calendar,
+            now: now
+        )
+        let theirStarts = Set(theirs.map(\.startsAt))
+        return mine.filter { theirStarts.contains($0.startsAt) }
+    }
+
+    static func overlapSummary(slotCount: Int) -> String? {
+        guard slotCount > 0 else { return nil }
+        if slotCount == 1 { return "1 overlapping time in the next 2 weeks" }
+        return "\(slotCount) overlapping times in the next 2 weeks"
+    }
 }
 
 enum ICSBuilder {

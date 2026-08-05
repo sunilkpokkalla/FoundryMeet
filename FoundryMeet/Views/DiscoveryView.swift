@@ -78,6 +78,17 @@ struct DiscoveryView: View {
                                             toggleFilter(industry: industry)
                                         }
                                     }
+                                    ForEach(NetworkingIntent.allCases) { intent in
+                                        FilterChip(
+                                            text: intent.title,
+                                            icon: intent.icon,
+                                            isSelected: repository.filters.intent == intent
+                                        ) {
+                                            var next = repository.filters
+                                            next.intent = next.intent == intent ? nil : intent
+                                            repository.setFilters(next)
+                                        }
+                                    }
                                     if !repository.filters.isDefault {
                                         FilterChip(text: "Reset", isSelected: false) {
                                             repository.setFilters(.default)
@@ -457,6 +468,10 @@ struct DiscoveryProfileCard: View {
     var onDismiss: () -> Void
     var onConnect: () -> Void
 
+    @ObservedObject private var repository = AppRepository.shared
+    @State private var overlapLabel = ""
+    @State private var showSafety = false
+
     /// Accepts full URLs or scheme-less LinkedIn paths (e.g. linkedin.com/in/…).
     private static func normalizedProfileURL(_ raw: String?) -> URL? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -546,6 +561,35 @@ struct DiscoveryProfileCard: View {
                     .accessibilityLabel("Open LinkedIn profile")
                 }
 
+                if !overlapLabel.isEmpty {
+                    Label(overlapLabel, systemImage: "calendar")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if let looking = profile.lookingFor, !looking.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("LOOKING FOR")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                        Text(looking)
+                            .font(.system(size: 15))
+                            .foregroundColor(AppColors.onSurface)
+                    }
+                }
+
+                if let help = profile.canHelpWith, !help.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("CAN HELP WITH")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+                        Text(help)
+                            .font(.system(size: 15))
+                            .foregroundColor(AppColors.onSurface)
+                    }
+                }
+
                 if !profile.tags.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("TOP EXPERTISE")
@@ -611,12 +655,33 @@ struct DiscoveryProfileCard: View {
                     }
                     .disabled(isDisabled)
                 }
+
+                Button {
+                    showSafety = true
+                } label: {
+                    Text("Report or block")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .disabled(isDisabled)
             }
             .padding(24)
             .background(AppColors.surfaceContainerLowest)
         }
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.04), radius: 20, x: 0, y: 4)
+        .sheet(isPresented: $showSafety) {
+            SafetyActionsSheet(userId: profile.id, userName: profile.name) { _ in
+                if repository.isBlocked(profile.id) {
+                    onDismiss()
+                }
+            }
+        }
+        .task {
+            overlapLabel = await repository.overlapSummary(with: profile.id) ?? ""
+        }
     }
 }
 

@@ -53,6 +53,10 @@ struct UserProfile: Codable, Equatable {
     var stages: [String]
     var skills: [String]
     var goal: String?
+    /// Free-text: who / what they want to meet (complements structured `goal`).
+    var lookingFor: String?
+    /// Free-text: how they can help others in a coffee chat.
+    var canHelpWith: String?
     var bio: String?
     /// One-line product or idea — what someone is actually building.
     var buildingIdea: String?
@@ -79,6 +83,8 @@ struct UserProfile: Codable, Equatable {
         stages: [String] = [],
         skills: [String] = [],
         goal: String? = nil,
+        lookingFor: String? = nil,
+        canHelpWith: String? = nil,
         bio: String? = nil,
         buildingIdea: String? = nil,
         linkedInURL: String? = nil,
@@ -103,6 +109,8 @@ struct UserProfile: Codable, Equatable {
         self.stages = stages
         self.skills = skills
         self.goal = goal
+        self.lookingFor = lookingFor
+        self.canHelpWith = canHelpWith
         self.bio = bio
         self.buildingIdea = buildingIdea
         self.linkedInURL = linkedInURL
@@ -179,11 +187,13 @@ struct DiscoveryFilters: Equatable {
     var complementaryGoalsOnly: Bool = true
     /// Same city, or within coffee-chat distance when coordinates exist.
     var nearbyOnly: Bool = false
+    /// Hiring / fundraising / co-founder / advisor / customer intent chip.
+    var intent: NetworkingIntent? = nil
 
     static let `default` = DiscoveryFilters()
 
     var isDefault: Bool {
-        stage == nil && industry == nil && complementaryGoalsOnly && !nearbyOnly
+        stage == nil && industry == nil && complementaryGoalsOnly && !nearbyOnly && intent == nil
     }
 
     var isEmpty: Bool { isDefault }

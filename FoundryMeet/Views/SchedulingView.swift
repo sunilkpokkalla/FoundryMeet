@@ -9,6 +9,8 @@ struct SchedulingView: View {
     @State private var matchToSchedule: MatchRequest?
     @State private var chatToReschedule: CoffeeChat?
     @State private var chatToCancel: CoffeeChat?
+    @State private var chatForVideo: CoffeeChat?
+    @State private var videoURLDraft = ""
     @State private var cancellationReason = ""
 
     private var myId: String { authManager.userId ?? repository.profile?.id ?? "" }
@@ -21,6 +23,14 @@ struct SchedulingView: View {
         repository.chats.filter { $0.isConfirmed && !$0.isPast }
     }
 
+    private var needingOutcome: [CoffeeChat] {
+        repository.chatsNeedingOutcome
+    }
+
+    private var needingPrep: [CoffeeChat] {
+        repository.chatsNeedingPrep
+    }
+
     private var isEmpty: Bool {
         repository.incomingRequests.isEmpty
             && repository.outgoingRequests.isEmpty
@@ -28,6 +38,7 @@ struct SchedulingView: View {
             && repository.chatsAwaitingMyResponse.isEmpty
             && awaitingReply.isEmpty
             && upcoming.isEmpty
+            && needingOutcome.isEmpty
     }
 
     var body: some View {
@@ -56,6 +67,8 @@ struct SchedulingView: View {
                             if isEmpty {
                                 emptyState
                             } else {
+                                meetingPrep
+                                postChatFeedback
                                 requestsToAnswer
                                 timesToAnswer
                                 readyToSchedule
@@ -127,6 +140,38 @@ struct SchedulingView: View {
                     }
                 )
             }
+            .sheet(isPresented: Binding(
+                get: { chatForVideo != nil },
+                set: { if !$0 { chatForVideo = nil; videoURLDraft = "" } }
+            )) {
+                AppFormSheet(
+                    title: "Add video link",
+                    message: "Paste a Zoom, Meet, or FaceTime link for this chat.",
+                    fields: [
+                        AppFormField(
+                            label: "Meeting link",
+                            placeholder: "https://…",
+                            text: $videoURLDraft
+                        )
+                    ],
+                    cancelTitle: "Cancel",
+                    confirmTitle: "Save link",
+                    isDestructive: false,
+                    onCancel: {
+                        chatForVideo = nil
+                        videoURLDraft = ""
+                    },
+                    onConfirm: {
+                        if let chat = chatForVideo {
+                            perform("Video link saved.") {
+                                try await repository.updateChatVideoURL(chat, videoURL: videoURLDraft)
+                            }
+                        }
+                        chatForVideo = nil
+                        videoURLDraft = ""
+                    }
+                )
+            }
             .task {
                 try? await repository.refreshAll()
             }
@@ -164,6 +209,76 @@ struct SchedulingView: View {
     }
 
     // MARK: - Sections
+
+    @ViewBuilder
+    private var meetingPrep: some View {
+        let chats = needingPrep
+        if !chats.isEmpty {
+            section("Prep for today", count: chats.count) {
+                ForEach(chats) { chat in
+                    MeetingPrepCard(
+                        chat: chat,
+                        myId: myId,
+                        peer: peerProfile(for: chat),
+                        onAddVideo: {
+                            videoURLDraft = chat.videoURL
+                            chatForVideo = chat
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private func peerProfile(for chat: CoffeeChat) -> UserProfile? {
+        let otherId = chat.otherPartyId(for: myId)
+        return repository.networkProfiles.first(where: { $0.id == otherId })
+    }
+
+    @ViewBuilder
+    private var postChatFeedback: some View {
+        let chats = needingOutcome
+        if !chats.isEmpty {
+            section("How did it go?", count: chats.count) {
+                ForEach(chats) { chat in
+                    Card {
+                        personRow(
+                            name: chat.otherPartyName(for: myId),
+                            role: chat.candidateRole,
+                            detail: "Met \(chat.metOnLabel) · \(chat.timeLabel)"
+                        )
+
+                        Text("Quick feedback helps you remember who was worth meeting.")
+                            .font(.system(size: 13))
+                            .foregroundColor(AppColors.onSurfaceVariant)
+
+                        HStack(spacing: 8) {
+                            ForEach(CoffeeChat.MeetingOutcome.allCases) { outcome in
+                                Button {
+                                    perform("Thanks — noted.") {
+                                        try await repository.submitChatOutcome(chat, outcome: outcome)
+                                    }
+                                } label: {
+                                    Text(outcome.title)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(AppColors.onSurface)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(AppColors.surfaceContainerLowest)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(AppColors.hairline, lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     @ViewBuilder
     private var requestsToAnswer: some View {
@@ -313,7 +428,32 @@ struct SchedulingView: View {
                             role: chat.candidateRole,
                             detail: "\(chat.dayLabel) · \(chat.timeLabel) · \(chat.setting)"
                         )
+                        if let url = chat.normalizedVideoURL {
+                            Link(destination: url) {
+                                Label("Join video call", systemImage: "video.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(AppColors.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        } else {
+                            Button {
+                                videoURLDraft = chat.videoURL
+                                chatForVideo = chat
+                            } label: {
+                                Label("Add video link", systemImage: "video")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(AppColors.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                        }
                         HStack(spacing: 12) {
+                            if !chat.videoURL.isEmpty {
+                                secondaryButton("Edit link") {
+                                    videoURLDraft = chat.videoURL
+                                    chatForVideo = chat
+                                }
+                            }
                             secondaryButton("Cancel") { chatToCancel = chat }
                             secondaryButton("Reschedule") { chatToReschedule = chat }
                         }
@@ -454,9 +594,11 @@ struct ProposeTimeSheet: View {
     @State private var selection: AvailableSlot?
     @State private var setting: SettingType = .virtual
     @State private var talkingPoints = ""
+    @State private var videoURL = ""
     @State private var isLoading = true
     @State private var isWorking = false
     @State private var errorMessage = ""
+    @State private var usingOverlap = false
 
     enum SettingType: String, CaseIterable {
         case inPerson = "In-Person"
@@ -483,7 +625,11 @@ struct ProposeTimeSheet: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 28) {
-                        Text("Pick a slot from your availability. \(otherName) confirms before anything lands on a calendar.")
+                        Text(
+                            usingOverlap
+                                ? "These times fit both of your calendars. \(otherName) still confirms before anything lands on a calendar."
+                                : "Pick a slot from your availability. \(otherName) confirms before anything lands on a calendar."
+                        )
                             .font(.system(size: 15))
                             .foregroundColor(AppColors.onSurfaceVariant)
                             .fixedSize(horizontal: false, vertical: true)
@@ -522,6 +668,22 @@ struct ProposeTimeSheet: View {
                                 .cornerRadius(12)
                         }
 
+                        if setting == .virtual {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("VIDEO LINK (OPTIONAL)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(AppColors.onSurfaceVariant)
+                                    .kerning(1.2)
+
+                                TextField("https://zoom.us/… or FaceTime link", text: $videoURL)
+                                    .textInputAutocapitalization(.never)
+                                    .keyboardType(.URL)
+                                    .padding(16)
+                                    .background(AppColors.surfaceContainerLowest)
+                                    .cornerRadius(12)
+                            }
+                        }
+
                         if !errorMessage.isEmpty {
                             Text(errorMessage)
                                 .font(.system(size: 13))
@@ -558,7 +720,16 @@ struct ProposeTimeSheet: View {
                 }
             }
             .task {
-                let slots = await repository.availableSlots()
+                let otherId = match.otherPartyId(for: repository.profile?.id ?? "")
+                let overlapping = await repository.overlappingSlots(with: otherId)
+                let slots: [AvailableSlot]
+                if overlapping.isEmpty {
+                    slots = await repository.availableSlots()
+                    usingOverlap = false
+                } else {
+                    slots = overlapping
+                    usingOverlap = true
+                }
                 dayGroups = AvailabilityEngine.groupByDay(slots)
                 isLoading = false
             }
@@ -578,7 +749,8 @@ struct ProposeTimeSheet: View {
                     dayLabel: selection.dayLabel,
                     timeLabel: selection.timeLabel,
                     setting: setting.rawValue,
-                    talkingPoints: talkingPoints
+                    talkingPoints: talkingPoints,
+                    videoURL: setting == .virtual ? videoURL : ""
                 )
                 onSent("Time sent to \(otherName). You'll be notified when they confirm.")
                 dismiss()
@@ -586,6 +758,100 @@ struct ProposeTimeSheet: View {
                 errorMessage = error.localizedDescription
             }
             isWorking = false
+        }
+    }
+}
+
+/// Day-of / 24h prep card: peer context, agenda, LinkedIn, video link.
+struct MeetingPrepCard: View {
+    let chat: CoffeeChat
+    let myId: String
+    let peer: UserProfile?
+    var onAddVideo: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(chat.otherPartyName(for: myId))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(AppColors.onSurface)
+                    Text("\(chat.dayLabel) · \(chat.timeLabel) · \(chat.setting)")
+                        .font(.system(size: 13))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                }
+                Spacer()
+                Text("Soon")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(AppColors.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(AppColors.accentSoft))
+            }
+
+            if let goal = peer?.goal, !goal.isEmpty {
+                prepLine(title: "Their goal", value: goal)
+            }
+            if let looking = peer?.lookingFor, !looking.isEmpty {
+                prepLine(title: "Looking for", value: looking)
+            }
+            if let help = peer?.canHelpWith, !help.isEmpty {
+                prepLine(title: "Can help with", value: help)
+            }
+            if !chat.talkingPoints.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                prepLine(title: "Agenda", value: chat.talkingPoints)
+            }
+            let notes = chat.notes(for: myId)
+            if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                prepLine(title: "Your notes", value: notes)
+            }
+
+            HStack(spacing: 12) {
+                if let linkedIn = peer?.linkedInURL,
+                   !linkedIn.isEmpty,
+                   let url = URL(string: linkedIn) ?? URL(string: "https://\(linkedIn)") {
+                    Link(destination: url) {
+                        Label("LinkedIn", systemImage: "link")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppColors.primary)
+                    }
+                }
+
+                if let url = chat.normalizedVideoURL {
+                    Link(destination: url) {
+                        Label("Join call", systemImage: "video.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppColors.primary)
+                    }
+                } else {
+                    Button(action: onAddVideo) {
+                        Label("Add video link", systemImage: "video")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppColors.primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surfaceContainerLowest)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
+    }
+
+    private func prepLine(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(AppColors.onSurfaceVariant)
+            Text(value)
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.onSurface)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

@@ -360,3 +360,71 @@ enum NetworkingGoal: String, CaseIterable, Identifiable {
         return mine.counterparts.contains(theirs)
     }
 }
+
+/// Discover / Hub intent chips — maps onto goals, free-text looking-for, and role.
+enum NetworkingIntent: String, CaseIterable, Identifiable {
+    case hiring = "Hiring"
+    case fundraising = "Fundraising"
+    case cofounder = "Co-founder"
+    case advisor = "Advisor"
+    case customer = "Customer"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .hiring: return "person.badge.plus"
+        case .fundraising: return "dollarsign.circle"
+        case .cofounder: return "person.2"
+        case .advisor: return "graduationcap"
+        case .customer: return "bag"
+        }
+    }
+
+    func matches(candidate: DiscoveryCandidate) -> Bool {
+        let goal = candidate.goal.flatMap(NetworkingGoal.init(rawValue:))
+        let looking = (candidate.lookingFor ?? "").lowercased()
+        let help = (candidate.canHelpWith ?? "").lowercased()
+        let blob = [
+            candidate.goal,
+            candidate.lookingFor,
+            candidate.canHelpWith,
+            candidate.role,
+            candidate.desc
+        ]
+        .compactMap { $0?.lowercased() }
+        .joined(separator: " ")
+
+        switch self {
+        case .hiring:
+            return goal == .hireEarlyTeam
+                || looking.contains("hir")
+                || looking.contains("recruit")
+                || help.contains("hir")
+        case .fundraising:
+            // Prefer raisers; avoid matching every "Investor" role via "invest".
+            return goal == .raiseFunding
+                || looking.contains("fundrais")
+                || looking.contains("raising")
+                || looking.contains("seed")
+                || blob.contains("raise funding")
+        case .cofounder:
+            return goal == .findCofounder
+                || blob.contains("co-founder")
+                || blob.contains("cofounder")
+                || blob.contains("co founder")
+        case .advisor:
+            return goal == .adviseAndMentor
+                || goal == .getAdvice
+                || blob.contains("advisor")
+                || blob.contains("mentor")
+        case .customer:
+            return looking.contains("customer")
+                || looking.contains("design partner")
+                || looking.contains("pilot")
+                || help.contains("customer")
+                || blob.contains("buyer")
+        }
+    }
+}

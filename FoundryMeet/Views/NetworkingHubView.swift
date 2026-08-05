@@ -10,6 +10,7 @@ struct NetworkingHubView: View {
     /// Holds a thread while the profile sheet dismisses — avoids SwiftUI double-sheet races.
     @State private var pendingThread: MessageThread? = nil
     @State private var locationFilter = HubLocationFilter.default
+    @State private var intentFilter: NetworkingIntent? = nil
     @State private var showCountryPicker = false
     @State private var showCityPicker = false
     @StateObject private var currentLocation = CurrentLocationService()
@@ -17,10 +18,10 @@ struct NetworkingHubView: View {
     private var allBuilders: [DiscoveryCandidate] {
         let myId = authManager.userId ?? repository.profile?.id
         let live = repository.networkProfiles
-            .filter { $0.id != myId }
+            .filter { $0.id != myId && !repository.isBlocked($0.id) }
             .map(DiscoveryCandidate.init(profile:))
         if live.isEmpty && repository.usesLocalStore {
-            return SeedCatalog.candidates.filter { $0.id != myId }
+            return SeedCatalog.candidates.filter { $0.id != myId && !repository.isBlocked($0.id) }
         }
         return live
     }
@@ -30,12 +31,16 @@ struct NetworkingHubView: View {
     }
 
     private var builders: [DiscoveryCandidate] {
-        allBuilders.filtered(
+        var list = allBuilders.filtered(
             by: locationFilter,
             myLocation: repository.profile?.location,
             myLatitude: repository.profile?.latitude,
             myLongitude: repository.profile?.longitude
         )
+        if let intentFilter {
+            list = list.filter { intentFilter.matches(candidate: $0) }
+        }
+        return list
     }
 
     /// Near me needs coordinates for distance matching; a typed city alone is not enough.
@@ -231,6 +236,16 @@ struct NetworkingHubView: View {
                         isSelected: locationFilter.scope == .all
                     ) {
                         applyFilter(HubLocationFilter(scope: .all))
+                    }
+
+                    ForEach(NetworkingIntent.allCases) { intent in
+                        FilterChip(
+                            text: intent.title,
+                            icon: intent.icon,
+                            isSelected: intentFilter == intent
+                        ) {
+                            intentFilter = intentFilter == intent ? nil : intent
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -528,6 +543,8 @@ struct BuilderDetailView: View {
     @EnvironmentObject private var repository: AppRepository
     @Environment(\.dismiss) private var dismiss
     @State private var isWorking = false
+    @State private var overlapLabel = ""
+    @State private var showSafety = false
 
     private var isSelf: Bool {
         guard let myId = authManager.userId else { return false }
@@ -623,6 +640,14 @@ struct BuilderDetailView: View {
                                     }
                                     .accessibilityLabel("Open LinkedIn profile")
                                 }
+
+                                if !overlapLabel.isEmpty {
+                                    Label(overlapLabel, systemImage: "calendar")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(AppColors.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.top, 8)
+                                }
                             }
                             .padding(.horizontal, 24)
 
@@ -635,6 +660,24 @@ struct BuilderDetailView: View {
                                         Text(goal)
                                             .font(.system(size: 16, weight: .semibold))
                                             .foregroundColor(AppColors.onSurface)
+                                    }
+                                }
+
+                                if let looking = builder.lookingFor, !looking.isEmpty {
+                                    detailBlock(title: "LOOKING FOR") {
+                                        Text(looking)
+                                            .font(.system(size: 16))
+                                            .foregroundColor(AppColors.onSurface)
+                                            .lineSpacing(4)
+                                    }
+                                }
+
+                                if let help = builder.canHelpWith, !help.isEmpty {
+                                    detailBlock(title: "CAN HELP WITH") {
+                                        Text(help)
+                                            .font(.system(size: 16))
+                                            .foregroundColor(AppColors.onSurface)
+                                            .lineSpacing(4)
                                     }
                                 }
 
@@ -739,6 +782,17 @@ struct BuilderDetailView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if !isSelf {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button {
+                            showSafety = true
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundColor(AppColors.onSurfaceVariant)
+                        }
+                        .accessibilityLabel("Safety options")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -746,6 +800,16 @@ struct BuilderDetailView: View {
                             .font(.system(size: 24))
                     }
                 }
+            }
+            .sheet(isPresented: $showSafety) {
+                SafetyActionsSheet(userId: builder.id, userName: builder.name) { _ in
+                    if repository.isBlocked(builder.id) {
+                        dismiss()
+                    }
+                }
+            }
+            .task {
+                overlapLabel = await repository.overlapSummary(with: builder.id) ?? ""
             }
         }
     }

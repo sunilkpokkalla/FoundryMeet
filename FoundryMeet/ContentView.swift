@@ -53,13 +53,17 @@ struct ContentView: View {
     }
 
     private func sessionLoadingScreen(message: String?) -> some View {
-        ZStack {
-            AppColors.surface.ignoresSafeArea()
-            Image("Logo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 72, height: 72)
-                .accessibilityLabel(message ?? "FoundryMeet")
+        GeometryReader { geo in
+            let logoSide = min(geo.size.width, geo.size.height) * 0.36
+            ZStack {
+                AppColors.surface.ignoresSafeArea()
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: logoSide, height: logoSide)
+                    .accessibilityLabel(message ?? "FoundryMeet")
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
     }
 }

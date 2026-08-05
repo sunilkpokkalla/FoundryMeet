@@ -6,6 +6,55 @@ enum InteractionAction: String, Codable {
     case dismissed
 }
 
+/// Why a member reported another person. Stored for review; reporters cannot read others' reports.
+struct UserReport: Codable, Identifiable, Equatable {
+    enum Reason: String, Codable, CaseIterable, Identifiable {
+        case spam
+        case harassment
+        case inappropriate
+        case fakeProfile = "fake_profile"
+        case other
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .spam: return "Spam or solicitation"
+            case .harassment: return "Harassment"
+            case .inappropriate: return "Inappropriate content"
+            case .fakeProfile: return "Fake or misleading profile"
+            case .other: return "Something else"
+            }
+        }
+    }
+
+    var id: String
+    var reporterId: String
+    var reportedUserId: String
+    var reportedUserName: String
+    var reason: String
+    var details: String
+    var createdAt: Date
+
+    init(
+        id: String = UUID().uuidString,
+        reporterId: String,
+        reportedUserId: String,
+        reportedUserName: String,
+        reason: Reason,
+        details: String = "",
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.reporterId = reporterId
+        self.reportedUserId = reportedUserId
+        self.reportedUserName = reportedUserName
+        self.reason = reason.rawValue
+        self.details = details
+        self.createdAt = createdAt
+    }
+}
+
 struct ProfileInteraction: Codable, Identifiable, Equatable {
     var id: String
     var candidateId: String
@@ -127,6 +176,8 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var timeLabel: String
     var setting: String
     var talkingPoints: String
+    /// Optional FaceTime / Zoom / Meet link for virtual chats.
+    var videoURL: String = ""
     /// Legacy shared notes field — prefer `privateNotes`.
     var notes: String
     /// Per-participant private notes. Only the owner should read/write their entry.
@@ -180,6 +231,20 @@ struct CoffeeChat: Codable, Identifiable, Equatable {
     var isPast: Bool {
         guard let startsAt else { return false }
         return startsAt < Date()
+    }
+
+    /// Confirmed chats starting within the next 24 hours — show a prep card.
+    func needsPrep(now: Date = Date()) -> Bool {
+        guard isConfirmed, !isPast, let startsAt else { return false }
+        let hours = startsAt.timeIntervalSince(now) / 3600
+        return hours >= 0 && hours <= 24
+    }
+
+    var normalizedVideoURL: URL? {
+        let trimmed = videoURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let url = URL(string: trimmed), url.scheme != nil { return url }
+        return URL(string: "https://\(trimmed)")
     }
 
     func awaitsResponse(from userId: String) -> Bool {
@@ -236,6 +301,8 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     let industry: String
     var stages: [String] = []
     var goal: String? = nil
+    var lookingFor: String? = nil
+    var canHelpWith: String? = nil
     var location: String? = nil
     var latitude: Double? = nil
     var longitude: Double? = nil
@@ -279,6 +346,8 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         industry: String,
         stages: [String] = [],
         goal: String? = nil,
+        lookingFor: String? = nil,
+        canHelpWith: String? = nil,
         location: String? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
@@ -297,6 +366,8 @@ struct DiscoveryCandidate: Identifiable, Equatable {
         self.industry = industry
         self.stages = stages
         self.goal = goal
+        self.lookingFor = lookingFor
+        self.canHelpWith = canHelpWith
         self.location = location
         self.latitude = latitude
         self.longitude = longitude
@@ -310,9 +381,12 @@ struct DiscoveryCandidate: Identifiable, Equatable {
     init(profile: UserProfile) {
         let idea = profile.buildingIdea?.trimmingCharacters(in: .whitespacesAndNewlines)
         let about = profile.bio?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let looking = profile.lookingFor?.trimmingCharacters(in: .whitespacesAndNewlines)
         let blurb: String
         if let idea, !idea.isEmpty {
             blurb = idea
+        } else if let looking, !looking.isEmpty {
+            blurb = looking
         } else if let about, !about.isEmpty {
             blurb = about
         } else if let goal = profile.goal {
@@ -330,6 +404,11 @@ struct DiscoveryCandidate: Identifiable, Equatable {
             industry: profile.industry ?? "Startup",
             stages: profile.stages,
             goal: profile.goal,
+            lookingFor: looking?.isEmpty == false ? looking : nil,
+            canHelpWith: {
+                let help = profile.canHelpWith?.trimmingCharacters(in: .whitespacesAndNewlines)
+                return (help?.isEmpty == false) ? help : nil
+            }(),
             location: profile.location,
             latitude: profile.latitude,
             longitude: profile.longitude,

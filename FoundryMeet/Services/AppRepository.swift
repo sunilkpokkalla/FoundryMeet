@@ -13,6 +13,7 @@ final class AppRepository: ObservableObject {
     @Published private(set) var discoveryFeed: [DiscoveryCandidate] = []
     @Published private(set) var networkProfiles: [UserProfile] = []
     @Published private(set) var threads: [MessageThread] = []
+    @Published private(set) var blockedUserIds: Set<String> = []
     @Published var filters = DiscoveryFilters()
     @Published var lastError: String?
 
@@ -89,6 +90,25 @@ final class AppRepository: ObservableObject {
             .sorted { ($0.startsAt ?? $0.createdAt) < ($1.startsAt ?? $1.createdAt) }
     }
 
+    /// Past confirmed chats still waiting for this user's post-chat feedback.
+    var chatsNeedingOutcome: [CoffeeChat] {
+        guard let userId else { return [] }
+        return chats
+            .filter { $0.needsOutcome && $0.outcome(for: userId) == nil }
+            .sorted { ($0.startsAt ?? $0.createdAt) > ($1.startsAt ?? $1.createdAt) }
+    }
+
+    /// Confirmed chats starting within 24 hours — show prep before the meeting.
+    var chatsNeedingPrep: [CoffeeChat] {
+        chats
+            .filter { $0.needsPrep() }
+            .sorted { ($0.startsAt ?? .distantFuture) < ($1.startsAt ?? .distantFuture) }
+    }
+
+    func isBlocked(_ otherUserId: String) -> Bool {
+        blockedUserIds.contains(otherUserId)
+    }
+
     func configure(userId: String, email: String, displayName: String, useLocalStore: Bool) async {
         self.userId = userId
         self.usesLocalStore = useLocalStore
@@ -133,6 +153,7 @@ final class AppRepository: ObservableObject {
         discoveryFeed = []
         networkProfiles = []
         threads = []
+        blockedUserIds = []
         filters = DiscoveryFilters()
         excludedCandidateIds = []
         lastError = nil
@@ -154,8 +175,7 @@ final class AppRepository: ObservableObject {
                             .compactMap { MatchRequest(id: $0.documentID, firestoreData: $0.data()) }
                             .sorted { $0.updatedAt > $1.updatedAt }
                         let interactions = (try? await self.loadInteractions(userId: userId)) ?? []
-                        self.excludedCandidateIds = Set(interactions.map(\.candidateId))
-                            .union(self.matchRequests.filter { $0.isPending || $0.isAccepted }.map { $0.otherPartyId(for: userId) })
+                        self.rebuildExcludedIds(interactions: interactions, userId: userId)
                         await self.rebuildDiscoveryFeed()
                     }
                 }
@@ -454,6 +474,37 @@ final class AppRepository: ObservableObject {
         )
     }
 
+    /// Times that fit both people. Falls back to an empty list when the other
+    /// profile is unknown; callers can then use `availableSlots()` alone.
+    func overlappingSlots(with otherUserId: String, meetingMinutes: Int = 45) async -> [AvailableSlot] {
+        let myWindows = profile?.availability.isEmpty == false
+            ? (profile?.availability ?? AvailabilityWindow.defaultWorkWeek)
+            : AvailabilityWindow.defaultWorkWeek
+        let theirProfile = networkProfiles.first(where: { $0.id == otherUserId })
+        let theirWindows = theirProfile?.availability.isEmpty == false
+            ? (theirProfile?.availability ?? AvailabilityWindow.defaultWorkWeek)
+            : AvailabilityWindow.defaultWorkWeek
+
+        let start = Date()
+        let end = Calendar.current.date(byAdding: .day, value: 14, to: start) ?? start.addingTimeInterval(14 * 86400)
+        let busy = await CalendarInviteService.shared.busyIntervals(from: start, to: end)
+
+        return AvailabilityEngine.overlappingSlots(
+            myWindows: myWindows,
+            theirWindows: theirWindows,
+            from: start,
+            dayCount: 14,
+            meetingMinutes: meetingMinutes,
+            stepMinutes: 30,
+            myBusyIntervals: busy
+        )
+    }
+
+    func overlapSummary(with otherUserId: String) async -> String? {
+        let count = await overlappingSlots(with: otherUserId).count
+        return AvailabilityEngine.overlapSummary(slotCount: count)
+    }
+
     // MARK: - Coffee chat scheduling
 
     /// Puts a time on the table for an accepted match. Nothing lands on either
@@ -465,7 +516,8 @@ final class AppRepository: ObservableObject {
         dayLabel: String,
         timeLabel: String,
         setting: String,
-        talkingPoints: String
+        talkingPoints: String,
+        videoURL: String = ""
     ) async throws -> CoffeeChat {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
         guard match.isAccepted else { throw RepositoryError.matchNotAccepted }
@@ -485,6 +537,7 @@ final class AppRepository: ObservableObject {
             timeLabel: timeLabel,
             setting: setting,
             talkingPoints: talkingPoints,
+            videoURL: videoURL.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: "",
             status: CoffeeChat.Status.proposed.rawValue,
             proposedById: userId,
@@ -634,8 +687,12 @@ final class AppRepository: ObservableObject {
 
                 if let eventId = try? await CalendarInviteService.shared.createEvent(
                     title: "FoundryMeet coffee with \(other)",
-                    notes: chat.talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : chat.talkingPoints,
-                    location: chat.setting,
+                    notes: {
+                        var parts = [chat.talkingPoints.isEmpty ? "Coffee chat via FoundryMeet" : chat.talkingPoints]
+                        if !chat.videoURL.isEmpty { parts.append("Join: \(chat.videoURL)") }
+                        return parts.joined(separator: "\n")
+                    }(),
+                    location: chat.videoURL.isEmpty ? chat.setting : chat.videoURL,
                     startsAt: startsAt,
                     endsAt: endsAt
                 ) {
@@ -767,20 +824,27 @@ final class AppRepository: ObservableObject {
         async let chatsTask = loadChats(userId: userId)
         async let networkTask = loadNetworkProfiles(excluding: userId)
         async let threadsTask = loadThreads(userId: userId)
+        async let blocksTask = loadBlockedUserIds(userId: userId)
 
         let interactions = try await interactionsTask
         matchRequests = try await matchesTask
         chats = try await chatsTask
         networkProfiles = try await networkTask
         threads = try await threadsTask
+        blockedUserIds = try await blocksTask
         // Keep live sync attached after every refresh (covers first launch races).
         if listeners.isEmpty {
             startRealtimeSync()
         }
-        excludedCandidateIds = Set(interactions.map(\.candidateId))
-            .union(matchRequests.filter { $0.isPending || $0.isAccepted }.map { $0.otherPartyId(for: userId) })
+        rebuildExcludedIds(interactions: interactions, userId: userId)
         await rebuildDiscoveryFeed()
         await syncCalendarState()
+    }
+
+    private func rebuildExcludedIds(interactions: [ProfileInteraction], userId: String) {
+        excludedCandidateIds = Set(interactions.map(\.candidateId))
+            .union(matchRequests.filter { $0.isPending || $0.isAccepted }.map { $0.otherPartyId(for: userId) })
+            .union(blockedUserIds)
     }
 
     private func rebuildDiscoveryFeed() async {
@@ -827,6 +891,9 @@ final class AppRepository: ObservableObject {
                         theirLongitude: $0.longitude
                     )
             }
+        }
+        if let intent = filters.intent {
+            candidates = candidates.filter { intent.matches(candidate: $0) }
         }
 
         // Complementary goals first, then closer people, then original order.
@@ -895,6 +962,7 @@ final class AppRepository: ObservableObject {
     func requestMatch(with candidate: DiscoveryCandidate, note: String = "") async throws {
         guard let userId, let me = profile else { throw RepositoryError.notSignedIn }
         guard !MatchRequest.isSelfPair(userId, candidate.id) else { throw RepositoryError.selfRequest }
+        guard !blockedUserIds.contains(candidate.id) else { throw RepositoryError.userBlocked }
         if DemoPartner.isDemo(candidate.id) {
             try await connectWithDemoPartner(candidate, note: note)
             return
@@ -1043,6 +1111,17 @@ final class AppRepository: ObservableObject {
         await rebuildDiscoveryFeed()
     }
 
+    func updateChatVideoURL(_ chat: CoffeeChat, videoURL: String) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        var updated = chats.first(where: { $0.id == chat.id }) ?? chat
+        guard updated.participantIds.contains(userId) else { throw RepositoryError.notAllowed }
+        updated.videoURL = videoURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.updatedAt = Date()
+        try await saveChat(updated)
+        upsertChat(updated)
+        await syncCalendarState()
+    }
+
     func updateChatNotes(chatId: String, notes: String) async throws {
         guard let userId else { throw RepositoryError.notSignedIn }
         guard var chat = chats.first(where: { $0.id == chatId }) else {
@@ -1068,6 +1147,65 @@ final class AppRepository: ObservableObject {
         updated.updatedAt = Date()
         try await saveChat(updated)
         upsertChat(updated)
+    }
+
+    // MARK: - Safety
+
+    func blockUser(userId blockedId: String, userName: String) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard blockedId != userId else { throw RepositoryError.selfRequest }
+        guard !DemoPartner.isDemo(blockedId) else { throw RepositoryError.sampleProfile }
+
+        if usesLocalStore {
+            var all = (try? readLocal(key: "blocks_\(userId)", as: [String].self)) ?? []
+            if !all.contains(blockedId) { all.append(blockedId) }
+            try writeLocal(all, key: "blocks_\(userId)")
+        } else {
+            try await db.collection("users").document(userId)
+                .collection("blocks").document(blockedId)
+                .setData([
+                    "blockedUserId": blockedId,
+                    "blockedUserName": userName,
+                    "createdAt": Timestamp(date: Date())
+                ], merge: true)
+        }
+
+        blockedUserIds.insert(blockedId)
+        excludedCandidateIds.insert(blockedId)
+        discoveryFeed.removeAll { $0.id == blockedId }
+        // Soft-pass so rediscovery stays off even if the block list fails to load.
+        try? await recordInteraction(
+            candidateId: blockedId,
+            candidateName: userName,
+            candidateRole: "Blocked",
+            action: .dismissed
+        )
+    }
+
+    func reportUser(
+        userId reportedId: String,
+        userName: String,
+        reason: UserReport.Reason,
+        details: String = ""
+    ) async throws {
+        guard let userId else { throw RepositoryError.notSignedIn }
+        guard reportedId != userId else { throw RepositoryError.selfRequest }
+
+        let report = UserReport(
+            reporterId: userId,
+            reportedUserId: reportedId,
+            reportedUserName: userName,
+            reason: reason,
+            details: details.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+
+        if usesLocalStore {
+            var all = (try? readLocal(key: "reports_shared", as: [UserReport].self)) ?? []
+            all.insert(report, at: 0)
+            try writeLocal(all, key: "reports_shared")
+        } else {
+            try await db.collection("reports").document(report.id).setData(report.firestoreData, merge: true)
+        }
     }
 
     // MARK: - Messaging
@@ -1263,6 +1401,16 @@ final class AppRepository: ObservableObject {
         return snapshot.documents.compactMap { ProfileInteraction(id: $0.documentID, firestoreData: $0.data()) }
     }
 
+    private func loadBlockedUserIds(userId: String) async throws -> Set<String> {
+        if usesLocalStore {
+            let all = (try? readLocal(key: "blocks_\(userId)", as: [String].self)) ?? []
+            return Set(all)
+        }
+        let snapshot = try await db.collection("users").document(userId)
+            .collection("blocks").getDocuments()
+        return Set(snapshot.documents.map(\.documentID))
+    }
+
     private func saveMatchRequest(_ request: MatchRequest) async throws {
         if usesLocalStore {
             var all = (try? readLocal(key: "match_requests_shared", as: [MatchRequest].self)) ?? []
@@ -1424,6 +1572,7 @@ enum RepositoryError: LocalizedError {
     case matchNotAccepted
     case chatNotActive
     case sampleProfile
+    case userBlocked
     case reauthenticationRequired
 
     var errorDescription: String? {
@@ -1439,6 +1588,7 @@ enum RepositoryError: LocalizedError {
             return "Messaging unlocks after they accept your coffee chat request."
         case .chatNotActive: return "This coffee chat is no longer active."
         case .sampleProfile: return "This is a sample profile and can't receive requests."
+        case .userBlocked: return "You've blocked this person."
         case .reauthenticationRequired:
             return "For security, sign out, sign back in, then delete your account again."
         }
@@ -1467,6 +1617,8 @@ extension UserProfile {
         // after the user blanks bio, switches to Remote, removes LinkedIn, etc.
         data["role"] = role ?? NSNull()
         data["goal"] = goal ?? NSNull()
+        data["lookingFor"] = lookingFor ?? NSNull()
+        data["canHelpWith"] = canHelpWith ?? NSNull()
         data["bio"] = bio ?? NSNull()
         data["buildingIdea"] = buildingIdea ?? NSNull()
         data["linkedInURL"] = linkedInURL ?? NSNull()
@@ -1510,6 +1662,8 @@ extension UserProfile {
             ),
             skills: data["skills"] as? [String] ?? [],
             goal: data["goal"] as? String,
+            lookingFor: data["lookingFor"] as? String,
+            canHelpWith: data["canHelpWith"] as? String,
             bio: data["bio"] as? String,
             buildingIdea: data["buildingIdea"] as? String,
             linkedInURL: data["linkedInURL"] as? String,
@@ -1620,6 +1774,19 @@ private extension ProfileInteraction {
     }
 }
 
+private extension UserReport {
+    var firestoreData: [String: Any] {
+        [
+            "reporterId": reporterId,
+            "reportedUserId": reportedUserId,
+            "reportedUserName": reportedUserName,
+            "reason": reason,
+            "details": details,
+            "createdAt": Timestamp(date: createdAt)
+        ]
+    }
+}
+
 extension MatchRequest {
     var firestoreData: [String: Any] {
         [
@@ -1672,6 +1839,7 @@ private extension CoffeeChat {
             "timeLabel": timeLabel,
             "setting": setting,
             "talkingPoints": talkingPoints,
+            "videoURL": videoURL,
             "notes": notes,
             "privateNotes": privateNotes,
             "status": status,
@@ -1711,6 +1879,7 @@ private extension CoffeeChat {
             timeLabel: data["timeLabel"] as? String ?? "",
             setting: data["setting"] as? String ?? "Virtual",
             talkingPoints: data["talkingPoints"] as? String ?? "",
+            videoURL: data["videoURL"] as? String ?? "",
             notes: data["notes"] as? String ?? "",
             privateNotes: data["privateNotes"] as? [String: String] ?? [:],
             status: data["status"] as? String ?? CoffeeChat.legacyConfirmedStatus,

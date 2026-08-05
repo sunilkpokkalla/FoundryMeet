@@ -9,6 +9,14 @@ struct MessagesView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showProfile = false
 
+    private var visibleThreads: [MessageThread] {
+        let myId = authManager.userId ?? ""
+        return repository.threads.filter { thread in
+            let other = thread.participantIds.first { $0 != myId } ?? ""
+            return !repository.isBlocked(other)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -23,7 +31,7 @@ struct MessagesView: View {
                         )
                     }
 
-                    if repository.threads.isEmpty {
+                    if visibleThreads.isEmpty {
                         emptyState
                     } else {
                         threadList
@@ -70,7 +78,7 @@ struct MessagesView: View {
     }
 
     private var threadList: some View {
-        List(repository.threads) { thread in
+        List(visibleThreads) { thread in
             NavigationLink {
                 ConversationView(thread: thread)
             } label: {
@@ -101,16 +109,52 @@ struct ConversationView: View {
     let thread: MessageThread
     @ObservedObject private var repository = AppRepository.shared
     @EnvironmentObject private var authManager: AuthManager
+    @Environment(\.dismiss) private var dismiss
     @State private var messages: [ChatMessage] = []
     @State private var draft = ""
     @State private var errorMessage = ""
     @State private var isSending = false
+    @State private var showSafety = false
+    @State private var statusMessage = ""
+
+    private var otherUserId: String {
+        let myId = authManager.userId ?? ""
+        return thread.participantIds.first { $0 != myId } ?? myId
+    }
+
+    private var otherName: String {
+        thread.participantNames[otherUserId] ?? "Chat"
+    }
+
+    private var otherCandidate: DiscoveryCandidate {
+        if let profile = repository.networkProfiles.first(where: { $0.id == otherUserId }) {
+            return DiscoveryCandidate(profile: profile)
+        }
+        return DiscoveryCandidate(
+            id: otherUserId,
+            name: otherName,
+            role: "Founder",
+            imgUrl: "",
+            desc: "",
+            tags: [],
+            industry: "Startup"
+        )
+    }
+
+    private var icebreakers: [String] {
+        IcebreakerSuggestions.prompts(me: repository.profile, them: otherCandidate)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
+                        if messages.isEmpty {
+                            icebreakerSection
+                                .padding(.bottom, 8)
+                        }
+
                         ForEach(messages) { message in
                             let isMine = message.senderId == authManager.userId
                             HStack {
@@ -133,6 +177,13 @@ struct ConversationView: View {
                         withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                     }
                 }
+            }
+
+            if !statusMessage.isEmpty {
+                Text(statusMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.secondary)
+                    .padding(.horizontal)
             }
 
             if !errorMessage.isEmpty {
@@ -170,8 +221,26 @@ struct ConversationView: View {
             .background(AppColors.surface)
         }
         .background(AppColors.surface.ignoresSafeArea())
-        .navigationTitle(title)
+        .navigationTitle(otherName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showSafety = true
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel("Safety options")
+            }
+        }
+        .sheet(isPresented: $showSafety) {
+            SafetyActionsSheet(userId: otherUserId, userName: otherName) { message in
+                statusMessage = message
+                if repository.isBlocked(otherUserId) {
+                    dismiss()
+                }
+            }
+        }
         .task {
             repository.observeMessages(threadId: thread.id) { latest in
                 messages = latest
@@ -182,10 +251,39 @@ struct ConversationView: View {
         }
     }
 
-    private var title: String {
-        let myId = authManager.userId ?? ""
-        let other = thread.participantIds.first { $0 != myId } ?? myId
-        return thread.participantNames[other] ?? "Chat"
+    private var icebreakerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Break the ice")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(AppColors.onSurface)
+            Text("Tap a starter — you can edit before sending.")
+                .font(.system(size: 13))
+                .foregroundColor(AppColors.onSurfaceVariant)
+
+            ForEach(icebreakers, id: \.self) { prompt in
+                Button {
+                    draft = prompt
+                } label: {
+                    Text(prompt)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(AppColors.onSurface)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(AppColors.surfaceContainerLow)
+                        .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                .disabled(isSending)
+            }
+        }
+        .padding(14)
+        .background(AppColors.surfaceContainerLowest)
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(AppColors.hairline, lineWidth: 1)
+        )
     }
 
     private func send() {

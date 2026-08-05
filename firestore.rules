@@ -207,5 +207,23 @@ service cloud.firestore {
       allow update: if isReviewer();
       allow delete: if false;
     }
+
+    // Safety: report another member. Only the reporter (or reviewers) may read it.
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.reportedUserId is string
+        && request.resource.data.reportedUserId != request.auth.uid
+        && request.resource.data.reason is string;
+      allow read: if isReviewer()
+        || (signedIn() && resource.data.reporterId == request.auth.uid);
+      allow update, delete: if false;
+    }
+
+    // Block list lives under the blocker so each person controls their own.
+    match /users/{userId}/blocks/{blockedId} {
+      allow read, write: if isSelf(userId)
+        && blockedId != userId;
+    }
   }
 }

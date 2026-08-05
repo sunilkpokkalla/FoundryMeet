@@ -15,6 +15,8 @@ struct ProfileView: View {
     @State private var stages: Set<StartupStage> = []
     @State private var goal: NetworkingGoal?
     @State private var industry: Industry?
+    @State private var lookingFor = ""
+    @State private var canHelpWith = ""
     @State private var bio = ""
     @State private var buildingIdea = ""
     @State private var linkedInURL = ""
@@ -347,6 +349,28 @@ struct ProfileView: View {
                 .padding(.vertical, 12)
                 divider
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("Looking for")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    TextField("e.g. Early eng hires, design partners, a technical co-founder", text: $lookingFor, axis: .vertical)
+                        .lineLimit(2...4)
+                        .font(.system(size: 16))
+                        .foregroundColor(AppColors.onSurface)
+                }
+                .padding(.vertical, 14)
+                divider
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Can help with")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.onSurfaceVariant)
+                    TextField("e.g. GTM for B2B SaaS, fundraising intros, product reviews", text: $canHelpWith, axis: .vertical)
+                        .lineLimit(2...4)
+                        .font(.system(size: 16))
+                        .foregroundColor(AppColors.onSurface)
+                }
+                .padding(.vertical, 14)
+                divider
+                VStack(alignment: .leading, spacing: 8) {
                     Text("What I'm building")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppColors.onSurfaceVariant)
@@ -400,6 +424,10 @@ struct ProfileView: View {
                 detailRow("Stage", profile.stageSummary)
                 divider
                 detailRow("Goal", profile.goal ?? "—")
+                divider
+                detailRow("Looking for", profile.lookingFor?.isEmpty == false ? profile.lookingFor! : "—")
+                divider
+                detailRow("Can help with", profile.canHelpWith?.isEmpty == false ? profile.canHelpWith! : "—")
                 divider
                 detailRow("Industry", profile.industry ?? "—")
                 divider
@@ -743,6 +771,8 @@ struct ProfileView: View {
         unrecognizedStages = profile.stages.filter { StartupStage.parse($0) == nil }
         goal = profile.goal.flatMap(NetworkingGoal.init(rawValue:))
         industry = profile.industry.flatMap(Industry.init(rawValue:))
+        lookingFor = profile.lookingFor ?? ""
+        canHelpWith = profile.canHelpWith ?? ""
         bio = profile.bio ?? ""
         buildingIdea = profile.buildingIdea ?? ""
         linkedInURL = profile.linkedInURL ?? ""
@@ -779,6 +809,10 @@ struct ProfileView: View {
         profile.stages = StartupStage.allCases.filter(stages.contains).map(\.rawValue) + unrecognizedStages
         profile.goal = goal?.rawValue
         profile.industry = industry?.rawValue
+        let looking = lookingFor.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.lookingFor = looking.isEmpty ? nil : looking
+        let help = canHelpWith.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.canHelpWith = help.isEmpty ? nil : help
         profile.bio = bio.isEmpty ? nil : bio
         let idea = buildingIdea.trimmingCharacters(in: .whitespacesAndNewlines)
         profile.buildingIdea = idea.isEmpty ? nil : idea

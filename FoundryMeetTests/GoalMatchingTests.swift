@@ -92,5 +92,69 @@ final class DiscoveryFilterStateTests: XCTestCase {
         filters = DiscoveryFilters.default
         filters.industry = "Fintech"
         XCTAssertFalse(filters.isDefault)
+
+        filters = DiscoveryFilters.default
+        filters.intent = .hiring
+        XCTAssertFalse(filters.isDefault)
+    }
+}
+
+final class NetworkingIntentTests: XCTestCase {
+    func testHiringMatchesHireGoal() {
+        let candidate = DiscoveryCandidate(
+            id: "1",
+            name: "A",
+            role: "Founder",
+            imgUrl: "",
+            desc: "",
+            tags: [],
+            industry: "SaaS",
+            goal: NetworkingGoal.hireEarlyTeam.rawValue
+        )
+        XCTAssertTrue(NetworkingIntent.hiring.matches(candidate: candidate))
+        XCTAssertFalse(NetworkingIntent.customer.matches(candidate: candidate))
+    }
+
+    func testCustomerMatchesLookingForText() {
+        let candidate = DiscoveryCandidate(
+            id: "2",
+            name: "B",
+            role: "Founder",
+            imgUrl: "",
+            desc: "",
+            tags: [],
+            industry: "SaaS",
+            lookingFor: "Design partners and early customers"
+        )
+        XCTAssertTrue(NetworkingIntent.customer.matches(candidate: candidate))
+    }
+}
+
+final class MeetingPrepTests: XCTestCase {
+    func testNeedsPrepWithin24Hours() {
+        var chat = CoffeeChat(
+            id: "c1",
+            userId: "a",
+            candidateId: "b",
+            candidateName: "Sam",
+            candidateRole: "Founder",
+            organizerName: "Alex",
+            participantIds: ["a", "b"],
+            dayLabel: "Mon",
+            timeLabel: "10:00 AM",
+            setting: "Virtual",
+            talkingPoints: "Roadmap",
+            notes: "",
+            status: CoffeeChat.Status.confirmed.rawValue,
+            proposedById: "a",
+            inviteStatus: "none",
+            outcomes: [:],
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        chat.startsAt = Date().addingTimeInterval(2 * 3600)
+        XCTAssertTrue(chat.needsPrep())
+        chat.startsAt = Date().addingTimeInterval(48 * 3600)
+        XCTAssertFalse(chat.needsPrep())
     }
 }

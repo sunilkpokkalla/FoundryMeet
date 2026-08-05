@@ -32,6 +32,8 @@
 		53DF620BE5561042CC6D94F5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */; };
 		5496296331C5E1CC9A53E5D9 /* LocationSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C04F7CF41775C398F1D928C0 /* LocationSearchService.swift */; };
 		5B17C2E84A9F41D0B2E6A813 /* CurrentLocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C41D0A27E5B4F9A91C3D6E2 /* CurrentLocationService.swift */; };
+		A7C1E2F39B4D5A6C7E8F9012 /* IcebreakerSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D2F3A40C5E6B7D8F9A0123 /* IcebreakerSuggestions.swift */; };
+		C9E3F4A51D6B7C8E9F0A1234 /* SafetyActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F4A5B62E7C8D9F0A1B2345 /* SafetyActionsView.swift */; };
 		5D8E71C3B4DC19E86101CEEA /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 6A97479CB8FA6B6813C2F120 /* GoogleService-Info.plist */; };
 		643D531A71BEB6DB8302416B /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 2E5BBA4B1DB036FB5DCEE3F8 /* GoogleSignIn */; };
 		69A000F1D81A26D7BD95E6A2 /* FoundryMeetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A455A0FBA26F76131252C7E8 /* FoundryMeetApp.swift */; };
@@ -109,6 +111,8 @@
 		BB4A1D43C61E6AB28D080351 /* AvailabilityEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvailabilityEngineTests.swift; sourceTree = "<group>"; };
 		BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		8C41D0A27E5B4F9A91C3D6E2 /* CurrentLocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentLocationService.swift; sourceTree = "<group>"; };
+		B8D2F3A40C5E6B7D8F9A0123 /* IcebreakerSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IcebreakerSuggestions.swift; sourceTree = "<group>"; };
+		D0F4A5B62E7C8D9F0A1B2345 /* SafetyActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafetyActionsView.swift; sourceTree = "<group>"; };
 		C04F7CF41775C398F1D928C0 /* LocationSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationSearchService.swift; sourceTree = "<group>"; };
 		C6D4FB8A4FDCD9F0D268063B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C78EA52054894AED4DB6749E /* AppChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppChrome.swift; sourceTree = "<group>"; };
@@ -163,6 +167,7 @@
 				0377E53AAAB127FAFFF8694A /* NetworkingHubView.swift */,
 				BF1C5598F65A1EE928C61F55 /* OnboardingView.swift */,
 				65DBFEA2849FEF2171849697 /* ProfileView.swift */,
+				D0F4A5B62E7C8D9F0A1B2345 /* SafetyActionsView.swift */,
 				EA1431BB946EC402CF32FFB0 /* SchedulingView.swift */,
 				033CE942D48E98BD6D91D55B /* SlotPicker.swift */,
 			);
@@ -209,6 +214,7 @@
 				38A92E9CBEFBCC318A343238 /* CalendarInviteService.swift */,
 				8C41D0A27E5B4F9A91C3D6E2 /* CurrentLocationService.swift */,
 				9B56CAEB0BBA01B3DC11AA3B /* GeoDistance.swift */,
+				B8D2F3A40C5E6B7D8F9A0123 /* IcebreakerSuggestions.swift */,
 				C04F7CF41775C398F1D928C0 /* LocationSearchService.swift */,
 				65AD8BB63D42C2DE487CC423 /* PhotoStorageService.swift */,
 				DC63B2A9B7E5338E3AE9FFC4 /* PushNotificationService.swift */,
@@ -372,7 +378,9 @@
 				D76596A8F8F8FAC2774F5CDD /* LegalDocumentView.swift in Sources */,
 				D10C6156C70294636C18B585 /* LegalDocuments.swift in Sources */,
 				5B17C2E84A9F41D0B2E6A813 /* CurrentLocationService.swift in Sources */,
+				A7C1E2F39B4D5A6C7E8F9012 /* IcebreakerSuggestions.swift in Sources */,
 				789173DD07273205323A1941 /* LocationField.swift in Sources */,
+				C9E3F4A51D6B7C8E9F0A1234 /* SafetyActionsView.swift in Sources */,
 				5496296331C5E1CC9A53E5D9 /* LocationSearchService.swift in Sources */,
 				8D04A7F7835A240071A0A5F9 /* MainTabView.swift in Sources */,
 				AC77A423A0ABE138DC9CCAA2 /* MatchHistoryView.swift in Sources */,
@@ -485,7 +493,7 @@
 				CODE_SIGN_ENTITLEMENTS = FoundryMeet/FoundryMeet.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;
@@ -518,7 +526,7 @@
 				CODE_SIGN_ENTITLEMENTS = FoundryMeet/FoundryMeet.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 2K4C865Z8F;
 				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = FoundryMeet/Info.plist;

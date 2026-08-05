@@ -92,6 +92,66 @@ final class AvailabilityEngineTests: XCTestCase {
         XCTAssertEqual(grouped.map(\.dayLabel), ["Mon 3", "Tue 4"])
         XCTAssertEqual(grouped[0].slots.count, 2)
     }
+
+    func testOverlappingSlotsKeepSharedTimesOnly() {
+        var comps = DateComponents()
+        comps.year = 2026
+        comps.month = 8
+        comps.day = 3
+        comps.hour = 8
+        let now = calendar.date(from: comps)!
+
+        let mine = [AvailabilityWindow(weekday: 2, startMinutes: 9 * 60, endMinutes: 12 * 60)]
+        let theirs = [AvailabilityWindow(weekday: 2, startMinutes: 10 * 60, endMinutes: 11 * 60)]
+        let slots = AvailabilityEngine.overlappingSlots(
+            myWindows: mine,
+            theirWindows: theirs,
+            from: now,
+            dayCount: 1,
+            meetingMinutes: 45,
+            stepMinutes: 30,
+            myBusyIntervals: [],
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertFalse(slots.isEmpty)
+        for slot in slots {
+            let hour = calendar.component(.hour, from: slot.startsAt)
+            let minute = calendar.component(.minute, from: slot.startsAt)
+            let start = hour * 60 + minute
+            XCTAssertGreaterThanOrEqual(start, 10 * 60)
+            XCTAssertLessThanOrEqual(start + 45, 11 * 60)
+        }
+        XCTAssertEqual(AvailabilityEngine.overlapSummary(slotCount: slots.count)?.contains("overlapping"), true)
+        XCTAssertNil(AvailabilityEngine.overlapSummary(slotCount: 0))
+    }
+}
+
+final class IcebreakerSuggestionsTests: XCTestCase {
+    func testReturnsThreePromptsWithGoalContext() {
+        let them = DiscoveryCandidate(
+            id: "u2",
+            name: "Alex",
+            role: "Founder",
+            imgUrl: "",
+            desc: "Building tools",
+            tags: ["Swift"],
+            industry: "SaaS",
+            goal: "Hire engineers",
+            buildingIdea: "A scheduling app"
+        )
+        let me = UserProfile(
+            id: "u1",
+            email: "a@b.com",
+            displayName: "Sam",
+            skills: ["Swift"],
+            goal: "Find co-founder"
+        )
+        let prompts = IcebreakerSuggestions.prompts(me: me, them: them)
+        XCTAssertEqual(prompts.count, 3)
+        XCTAssertTrue(prompts.contains { $0.localizedCaseInsensitiveContains("hire engineers") })
+    }
 }
 
 final class ICSBuilderTests: XCTestCase {
